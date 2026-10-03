@@ -1,5 +1,7 @@
 #import <Foundation/Foundation.h>
 
+@class TBDashFormat;
+
 // What the app shows: videos (also shorts and live streams), channels, playlists, comments - as YouTube's
 // InnerTube API describes them, reduced to what the screens need.
 
@@ -93,9 +95,31 @@
 @property (nonatomic) NSInteger bandwidth;
 @property (nonatomic, copy) NSString *codecs;
 @property (nonatomic, copy) NSString *audioGroup;           // the AUDIO group the picture goes with (nil = sound inside)
+@property (nonatomic, strong) TBDashFormat *dash;           // set when the rendition is remuxed from a DASH file
 - (BOOL)isH264;
 - (NSString *)title;                                        // "720p", "1080p60"
 - (NSString *)qualityKey;                                   // "720"
+@end
+
+// One of YouTube's adaptive ("DASH") MP4 files: a single track in a fragmented MP4 with a sidx index, fetched by
+// byte ranges. The media proxy turns its fragments into MPEG-TS (video) or packed AAC (audio) for the player.
+@interface TBDashFormat : NSObject
+@property (nonatomic) NSInteger itag;
+@property (nonatomic, copy) NSString *url;
+@property (nonatomic, copy) NSString *codecs;               // "avc1.64001F", "mp4a.40.2"
+@property (nonatomic) BOOL isAudio;
+@property (nonatomic) NSInteger width;
+@property (nonatomic) NSInteger height;
+@property (nonatomic) double frameRate;
+@property (nonatomic) NSInteger bitrate;                    // bits per second
+@property (nonatomic) long long initStart, initEnd;         // the init segment (ftyp + moov)
+@property (nonatomic) long long indexStart, indexEnd;       // the sidx box
+@property (nonatomic) long long contentLength;
+@property (nonatomic) NSTimeInterval duration;
+@property (nonatomic) NSInteger audioSampleRate;
+@property (nonatomic) NSInteger audioChannels;
+@property (nonatomic) BOOL isDefaultAudio;                  // the original sound track (not an automatic dub)
+@property (nonatomic, copy) NSString *audioTrackName;
 @end
 
 // An alternate audio rendition (#EXT-X-MEDIA:TYPE=AUDIO)
@@ -103,6 +127,7 @@
 @property (nonatomic, copy) NSString *groupId;
 @property (nonatomic, copy) NSString *name;
 @property (nonatomic, copy) NSString *url;
+@property (nonatomic, strong) TBDashFormat *dash;           // set when the rendition is remuxed from a DASH file
 @end
 
 // The player response of a video, reduced
@@ -120,6 +145,8 @@
 @property (nonatomic, copy) NSString *hlsManifestURL;
 @property (nonatomic, copy) NSString *progressiveURL;       // the best MP4 with sound, 720p at most
 @property (nonatomic) NSInteger progressiveHeight;
+@property (nonatomic, strong) NSArray *dashVideo;           // TBDashFormat, H.264 only, highest first
+@property (nonatomic, strong) TBDashFormat *dashAudio;      // the AAC-LC sound track to go with them
 @property (nonatomic, strong) NSArray *captionTracks;       // TBCaptionTrack
 @property (nonatomic, copy) NSString *shortDescription;
 @property (nonatomic, copy) NSString *thumbnailURL;

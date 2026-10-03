@@ -875,6 +875,58 @@ static void TBWalk(id node, NSMutableArray *items, NSMutableArray *continuations
             info.progressiveURL = url;
             info.progressiveHeight = height;
         }
+        // adaptive MP4 files (DASH): H.264 pictures, AAC-LC sound - the media proxy remuxes them when there is no HLS
+        NSMutableArray *dashVideo = [NSMutableArray array];
+        NSMutableArray *dashAudio = [NSMutableArray array];
+        for (id f in TBArr(streaming[@"adaptiveFormats"])) {
+            NSDictionary *format = TBDict(f);
+            NSString *url = TBStr(format[@"url"]);
+            NSString *mime = TBStr(format[@"mimeType"]) ?: @"";
+            NSDictionary *initRange = TBDict(format[@"initRange"]), *indexRange = TBDict(format[@"indexRange"]);
+            if (!url.length || !initRange || !indexRange) continue;
+            BOOL video = [mime hasPrefix:@"video/mp4"] && [mime rangeOfString:@"avc1"].location != NSNotFound;
+            BOOL audio = [mime hasPrefix:@"audio/mp4"] && [mime rangeOfString:@"mp4a.40.2"].location != NSNotFound;
+            if (!video && !audio) continue;
+            TBDashFormat *d = [[TBDashFormat alloc] init];
+            d.itag = TBInt(format[@"itag"]);
+            d.url = url;
+            d.isAudio = audio;
+            NSRange codecs = [mime rangeOfString:@"codecs=\""];
+            if (codecs.location != NSNotFound) {
+                NSString *rest = [mime substringFromIndex:NSMaxRange(codecs)];
+                NSRange quote = [rest rangeOfString:@"\""];
+                d.codecs = quote.location != NSNotFound ? [rest substringToIndex:quote.location] : rest;
+            }
+            d.width = TBInt(format[@"width"]);
+            d.height = TBInt(format[@"height"]);
+            d.frameRate = TBDbl(format[@"fps"]);
+            d.bitrate = TBInt(format[@"bitrate"]);
+            d.initStart = (long long)TBDbl(initRange[@"start"]);
+            d.initEnd = (long long)TBDbl(initRange[@"end"]);
+            d.indexStart = (long long)TBDbl(indexRange[@"start"]);
+            d.indexEnd = (long long)TBDbl(indexRange[@"end"]);
+            d.contentLength = (long long)TBDbl(format[@"contentLength"]);
+            d.duration = TBDbl(format[@"approxDurationMs"]) / 1000.0;
+            d.audioSampleRate = TBInt(format[@"audioSampleRate"]);
+            d.audioChannels = TBInt(format[@"audioChannels"]);
+            NSDictionary *track = TBDict(format[@"audioTrack"]);
+            d.isDefaultAudio = !track || TBBool(track[@"audioIsDefault"]);
+            d.audioTrackName = TBStr(track[@"displayName"]);
+            if (d.indexEnd <= d.indexStart || d.indexEnd > 2000000) continue;   // (an index of megabytes: not this kind of file)
+            [video ? dashVideo : dashAudio addObject:d];
+        }
+        [dashVideo sortUsingComparator:^NSComparisonResult(TBDashFormat *a, TBDashFormat *b) {
+            if (a.height != b.height) return a.height > b.height ? NSOrderedAscending : NSOrderedDescending;
+            if (a.frameRate != b.frameRate) return a.frameRate > b.frameRate ? NSOrderedAscending : NSOrderedDescending;
+            return a.bitrate < b.bitrate ? NSOrderedAscending : (a.bitrate > b.bitrate ? NSOrderedDescending : NSOrderedSame);
+        }];
+        info.dashVideo = dashVideo;
+        // the sound: the original track (dubbed ones carry an audioTrack that is not the default), the best bitrate
+        TBDashFormat *bestAudio = nil;
+        for (TBDashFormat *a in dashAudio) {
+            if (!bestAudio || (a.isDefaultAudio && !bestAudio.isDefaultAudio) || (a.isDefaultAudio == bestAudio.isDefaultAudio && a.bitrate > bestAudio.bitrate)) bestAudio = a;
+        }
+        info.dashAudio = bestAudio;
         NSMutableArray *tracks = [NSMutableArray array];
         for (id t in TBArr(TBDict(TBDict(response[@"captions"])[@"playerCaptionsTracklistRenderer"])[@"captionTracks"])) {
             NSDictionary *track = TBDict(t);

@@ -1,5 +1,6 @@
 #import "TBMediaProxy.h"
 #import "TBHTTPRequest.h"
+#import "TBRemux.h"
 #import "TBSettings.h"
 #import "TBCommon.h"
 
@@ -20,12 +21,16 @@ typedef NS_ENUM(NSInteger, TBProxyEntryKind) {
     TBProxyEntryFile = 0,       // /<secret>/u/<id>/<name>: one absolute URL
     TBProxyEntryDirectory,      // /<secret>/d/<id>/<path>: a playlist and whatever it names relative to itself
     TBProxyEntryText,           // /<secret>/t/<id>/<name>: a playlist written by the app
+    TBProxyEntryDash,           // /<secret>/x/<id>/playlist.m3u8 and <n>.ts|.aac: an adaptive MP4 file, remuxed
 };
 
 @interface TBProxyEntry : NSObject
 @property (nonatomic) TBProxyEntryKind kind;
 @property (nonatomic, strong) NSURL *url;
 @property (nonatomic, copy) NSString *text;
+@property (nonatomic, strong) TBDashFormat *dash;
+@property (nonatomic, strong) TBDashIndex *index;     // read on the first request (under @synchronized (entry))
+@property (nonatomic, copy) NSString *indexError;
 @end
 
 @implementation TBProxyEntry
@@ -298,7 +303,8 @@ static BOOL TBProxyPortAnswers(uint16_t port)
         NSString *old = order[0];
         TBProxyEntry *e = self.entries[old];
         if (e.url) {
-            [self.idsByURL removeObjectForKey:[(e.kind == TBProxyEntryFile ? @"u:" : @"d:") stringByAppendingString:e.url.absoluteString]];
+            NSString *prefix = e.kind == TBProxyEntryFile ? @"u:" : (e.kind == TBProxyEntryDash ? @"x:" : @"d:");
+            [self.idsByURL removeObjectForKey:[prefix stringByAppendingString:e.kind == TBProxyEntryDash ? e.dash.url : e.url.absoluteString]];
         }
         [self.entries removeObjectForKey:old];
         [order removeObjectAtIndex:0];
@@ -342,6 +348,24 @@ static BOOL TBProxyPortAnswers(uint16_t port)
         entry.text = text;
         NSString *ident = [self addEntry:entry key:nil];
         return [NSString stringWithFormat:@"http://127.0.0.1:%u/%@/t/%@/master.m3u8", self.port, self.secret, ident];
+    }
+}
+
+- (NSString *)proxyURLForDashFormat:(TBDashFormat *)format
+{
+    if (!format.url.length) return nil;
+    @synchronized (self) {
+        if (self.listenFD < 0) return nil;
+        NSString *key = [@"x:" stringByAppendingString:format.url];
+        NSString *ident = self.idsByURL[key];
+        if (!ident) {
+            TBProxyEntry *entry = [[TBProxyEntry alloc] init];
+            entry.kind = TBProxyEntryDash;
+            entry.url = [NSURL URLWithString:format.url];
+            entry.dash = format;
+            ident = [self addEntry:entry key:key];
+        }
+        return [NSString stringWithFormat:@"http://127.0.0.1:%u/%@/x/%@/%@", self.port, self.secret, ident, TBProxyPlaylistName];
     }
 }
 
@@ -416,6 +440,11 @@ static BOOL TBProxyPortAnswers(uint16_t port)
     NSString *label = [NSString stringWithFormat:@"%@/%@", kind, parts[3]];
     if (entry.kind == TBProxyEntryFile && [kind isEqualToString:@"u"]) {
         [self relayURL:entry.url method:method headers:headers viaDirectory:NO label:label to:fd];
+        return;
+    }
+    if (entry.kind == TBProxyEntryDash && [kind isEqualToString:@"x"]) {
+        NSRange query = [rest rangeOfString:@"?"];
+        [self serveDash:entry name:query.location != NSNotFound ? [rest substringToIndex:query.location] : rest method:method label:label to:fd];
         return;
     }
     if (entry.kind == TBProxyEntryDirectory && [kind isEqualToString:@"d"]) {
@@ -551,6 +580,94 @@ static BOOL TBProxyPortAnswers(uint16_t port)
     }
     [self countServed:@"HTTP 502" bytes:0];
     TBSendStatus(fd, 502);
+}
+
+#pragma mark - Adaptive MP4 files
+
+// A byte range of the file, fetched on this thread
+- (NSData *)fetchRangeOf:(NSString *)url start:(long long)start end:(long long)end error:(NSString **)error
+{
+    TBHTTPRequest *r = [[TBHTTPRequest alloc] initWithMethod:@"GET" URL:[NSURL URLWithString:url]];
+    r.headers = @{ @"Accept": @"*/*", @"Range": [NSString stringWithFormat:@"bytes=%lld-%lld", start, end] };
+    r.verifyTLS = [TBSettings verifyTLS];
+    r.highPriority = YES;
+    r.noCompression = YES;
+    r.connectTimeout = 15;
+    r.readTimeout = 30;
+    __block NSError *failure = nil;
+    r.onComplete = ^(NSError *e) { failure = e; };
+    [r runSynchronously];
+    if (failure) { if (error) *error = failure.localizedDescription; return nil; }
+    if (r.statusCode != 206 && r.statusCode != 200) { if (error) *error = [NSString stringWithFormat:@"HTTP %ld", (long)r.statusCode]; return nil; }
+    NSData *body = r.responseBody;
+    long long wanted = end - start + 1;
+    if (r.statusCode == 200 && (long long)body.length > wanted) body = [body subdataWithRange:NSMakeRange((NSUInteger)start, (NSUInteger)wanted)];   // (a server that ignored the range)
+    if ((long long)body.length < wanted) { if (error) *error = [NSString stringWithFormat:@"short answer (%lu of %lld bytes)", (unsigned long)body.length, wanted]; return nil; }
+    return body;
+}
+
+// The file's index, read once
+- (TBDashIndex *)indexForEntry:(TBProxyEntry *)entry error:(NSString **)error
+{
+    @synchronized (entry) {
+        if (entry.index) return entry.index;
+        if (entry.indexError) { if (error) *error = entry.indexError; return nil; }
+        NSString *problem = nil;
+        NSData *head = [self fetchRangeOf:entry.dash.url start:0 end:entry.dash.indexEnd error:&problem];
+        TBDashIndex *index = head ? [TBDashIndex indexWithData:head format:entry.dash error:&problem] : nil;
+        if (!index) {
+            entry.indexError = problem ?: @"unreadable index";
+            TBLog(@"Remux: the index of itag %ld could not be read: %@", (long)entry.dash.itag, entry.indexError);
+            if (error) *error = entry.indexError;
+            return nil;
+        }
+        TBLog(@"Remux: itag %ld (%@) has %lu fragments, timescale %u%@", (long)entry.dash.itag, entry.dash.codecs, (unsigned long)index.fragments.count, index.timescale,
+              index.editOffset ? [NSString stringWithFormat:@", edit %lld", index.editOffset] : @"");
+        entry.index = index;
+        return index;
+    }
+}
+
+// "playlist.m3u8" or "<n>.ts" / "<n>.aac"
+- (void)serveDash:(TBProxyEntry *)entry name:(NSString *)name method:(NSString *)method label:(NSString *)label to:(int)fd
+{
+    NSString *problem = nil;
+    TBDashIndex *index = [self indexForEntry:entry error:&problem];
+    if (!index) { [self countServed:@"HTTP 502" bytes:0]; TBSendStatus(fd, 502); return; }
+    if ([name isEqualToString:TBProxyPlaylistName]) {
+        [self sendPlaylist:[index mediaPlaylist] method:method to:fd];
+        return;
+    }
+    NSInteger n = [[name stringByDeletingPathExtension] integerValue];
+    BOOL numeric = [[name stringByDeletingPathExtension] rangeOfCharacterFromSet:[[NSCharacterSet decimalDigitCharacterSet] invertedSet]].location == NSNotFound;
+    if (!numeric || n < 0 || (NSUInteger)n >= index.fragments.count) { [self countServed:@"HTTP 404" bytes:0]; TBSendStatus(fd, 404); return; }
+    TBDashFragment *fragment = index.fragments[(NSUInteger)n];
+    NSTimeInterval started = [NSDate timeIntervalSinceReferenceDate];
+    NSData *raw = [self fetchRangeOf:entry.dash.url start:fragment.offset end:fragment.offset + fragment.size - 1 error:&problem];
+    if (!raw) {
+        TBLog(@"Remux: fragment %ld of itag %ld could not be fetched: %@", (long)n, (long)entry.dash.itag, problem);
+        [self countServed:@"HTTP 502" bytes:0];
+        TBSendStatus(fd, 502);
+        return;
+    }
+    NSTimeInterval fetched = [NSDate timeIntervalSinceReferenceDate];
+    NSData *converted = entry.dash.isAudio ? [index packedAudioForFragment:(NSUInteger)n data:raw error:&problem] : [index transportStreamForFragment:(NSUInteger)n data:raw error:&problem];
+    if (!converted) {
+        TBLog(@"Remux: fragment %ld of itag %ld could not be converted: %@", (long)n, (long)entry.dash.itag, problem);
+        [self countServed:@"HTTP 502" bytes:0];
+        TBSendStatus(fd, 502);
+        return;
+    }
+    NSString *type = entry.dash.isAudio ? @"audio/aac" : @"video/MP2T";
+    if (self.logRequests) {
+        TBLog(@"Remux %@ fragment %ld: %lu -> %lu bytes, fetch %.2f s, convert %.2f s", label, (long)n, (unsigned long)raw.length, (unsigned long)converted.length,
+              fetched - started, [NSDate timeIntervalSinceReferenceDate] - fetched);
+    }
+    [self countServed:type bytes:0];
+    NSString *head = [NSString stringWithFormat:@"HTTP/1.1 200 OK\r\nContent-Type: %@\r\nContent-Length: %lu\r\nAccept-Ranges: none\r\nConnection: close\r\n\r\n", type, (unsigned long)converted.length];
+    if (TBSendString(fd, head) && ![method isEqualToString:@"HEAD"]) {
+        if (TBSendAll(fd, converted.bytes, converted.length)) [self countServed:type bytes:converted.length];
+    }
 }
 
 #pragma mark - Playlists

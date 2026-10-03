@@ -255,6 +255,9 @@ long long TBNumberFromText(NSString *text)
 
 @end
 
+@implementation TBDashFormat
+@end
+
 @implementation TBAudioRendition
 @end
 

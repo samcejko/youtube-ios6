@@ -453,7 +453,7 @@ typedef NS_ENUM(NSInteger, TBWatchSection) {
     self.playerView.qualityTitle = title ?: @"";
     NSMutableArray *names = [NSMutableArray array];
     for (TBVariant *v in self.source.variants) [names addObject:[v title]];
-    TBLog(@"Playing %@: %@ (%@) renditions: %@ audio: %lu", self.video.videoId, title, self.source.hasHLS ? @"HLS" : @"MP4",
+    TBLog(@"Playing %@: %@ (%@) renditions: %@ audio: %lu", self.video.videoId, title, self.source.isRemuxed ? @"DASH remux" : (self.source.hasHLS ? @"HLS" : @"MP4"),
           names.count ? [names componentsJoinedByString:@", "] : @"-", (unsigned long)self.source.audioRenditions.count);
     [self loadItemWithURL:url];
 }

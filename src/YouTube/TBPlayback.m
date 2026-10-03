@@ -12,6 +12,11 @@
     return self.variants.count > 0;
 }
 
+- (BOOL)isRemuxed
+{
+    return self.variants.count > 0 && [(TBVariant *)self.variants[0] dash] != nil;
+}
+
 @end
 
 // The attribute list of an HLS tag: NAME=value,NAME="quoted, value"
@@ -186,17 +191,55 @@ static NSDictionary *TBParseAttributes(NSString *list)
         }];
     };
 
-    // step 1: the iOS client (videos get their HLS here)
+    // step 1: the iOS client (videos get their HLS here; most of them only the adaptive MP4 files, which the proxy
+    // can remux into the same kind of stream)
     inner = [TBInnertube player:videoId client:TBClientIOS completion:^(TBPlayerInfo *info, NSError *error) {
         if (outer.isCancelled) return;
         if (error) { completion(nil, error); return; }
         source.info = info;
         source.isLive = info.isLive;
+        if (info.progressiveURL.length) { source.progressiveURL = info.progressiveURL; source.progressiveHeight = info.progressiveHeight; }
         if (![info.status isEqualToString:@"OK"]) { askAndroid(); return; }   // (the other client may be luckier)
-        if (info.isLive || preferProgressive || !info.hlsManifestURL.length) { askAndroid(); return; }
-        finishWithHLS(info.hlsManifestURL, TBClientIOS);
+        if (info.isLive || preferProgressive) { askAndroid(); return; }
+        if (info.hlsManifestURL.length) { finishWithHLS(info.hlsManifestURL, TBClientIOS); return; }
+        NSArray *variants = [self remuxVariantsForInfo:info];
+        if (variants.count) {
+            source.variants = variants;
+            TBAudioRendition *sound = [[TBAudioRendition alloc] init];
+            sound.groupId = @"dash";
+            sound.name = info.dashAudio.audioTrackName.length ? info.dashAudio.audioTrackName : @"Default";
+            sound.url = info.dashAudio.url;
+            sound.dash = info.dashAudio;
+            source.audioRenditions = @[ sound ];
+            completion(source, nil);
+            return;
+        }
+        askAndroid();
     }];
     return outer;
+}
+
+// The adaptive MP4 files as renditions (the proxy converts them), the device's limits applied, highest first
++ (NSArray *)remuxVariantsForInfo:(TBPlayerInfo *)info
+{
+    if (!info.dashVideo.count || !info.dashAudio) return @[];
+    NSMutableArray *variants = [NSMutableArray array];
+    for (TBDashFormat *d in info.dashVideo) {
+        TBVariant *v = [[TBVariant alloc] init];
+        v.url = d.url;
+        v.width = d.width;
+        v.height = d.height;
+        v.frameRate = d.frameRate > 0 ? d.frameRate : 30;
+        v.bandwidth = d.bitrate + info.dashAudio.bitrate;
+        v.codecs = [NSString stringWithFormat:@"%@,%@", d.codecs ?: @"avc1.4d401f", info.dashAudio.codecs ?: @"mp4a.40.2"];
+        v.audioGroup = @"dash";
+        v.dash = d;
+        if (![self deviceCanPlay:v]) continue;
+        TBVariant *last = variants.lastObject;
+        if (last && last.height == v.height && fabs(last.frameRate - v.frameRate) < 1) continue;   // (one per height and frame rate)
+        [variants addObject:v];
+    }
+    return variants;
 }
 
 #pragma mark - Player URLs
@@ -221,12 +264,12 @@ static NSDictionary *TBParseAttributes(NSString *list)
     for (TBVariant *v in ordered) if (v.audioGroup.length) [groupsUsed addObject:v.audioGroup];
     for (TBAudioRendition *r in audio) {
         if (![groupsUsed containsObject:r.groupId]) continue;
-        NSString *proxied = [proxy proxyURLForURL:[NSURL URLWithString:r.url]];
+        NSString *proxied = r.dash ? [proxy proxyURLForDashFormat:r.dash] : [proxy proxyURLForURL:[NSURL URLWithString:r.url]];
         if (!proxied) continue;
         [text appendFormat:@"#EXT-X-MEDIA:TYPE=AUDIO,GROUP-ID=\"%@\",NAME=\"%@\",DEFAULT=YES,AUTOSELECT=YES,URI=\"%@\"\n", r.groupId, r.name ?: @"Default", proxied];
     }
     for (TBVariant *v in ordered) {
-        NSString *proxied = [proxy proxyURLForURL:[NSURL URLWithString:v.url]];
+        NSString *proxied = v.dash ? [proxy proxyURLForDashFormat:v.dash] : [proxy proxyURLForURL:[NSURL URLWithString:v.url]];
         if (!proxied) continue;
         [text appendFormat:@"#EXT-X-STREAM-INF:PROGRAM-ID=1,BANDWIDTH=%ld", (long)MAX(v.bandwidth, (NSInteger)100000)];
         if (v.width > 0 && v.height > 0) [text appendFormat:@",RESOLUTION=%ldx%ld", (long)v.width, (long)v.height];

@@ -1,4 +1,5 @@
 #import <Foundation/Foundation.h>
+#import "TBModels.h"
 
 // The media player of iOS 6 (AVPlayer) loads streams with the system's own network stack, which cannot talk to
 // YouTube's servers: they only accept current TLS ciphers. This small HTTP server on 127.0.0.1 hands the stream to
@@ -23,6 +24,10 @@
 // The same for a playlist the app wrote itself (the master playlist with the renditions the device can play).
 // URIs in the text must already be proxy URLs.
 - (NSString *)proxyURLForPlaylistText:(NSString *)text;
+
+// A media playlist for one of YouTube's adaptive MP4 files: its fragments come out as MPEG-TS segments (pictures)
+// or packed AAC segments (sound), converted here as the player asks for them (see TBRemux)
+- (NSString *)proxyURLForDashFormat:(TBDashFormat *)format;
 
 // The media playlist served last carried a stitched-in advertisement (the player shows a note)
 @property (atomic, readonly) BOOL adBreakActive;

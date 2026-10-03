@@ -13,6 +13,7 @@
 @property (nonatomic) NSInteger progressiveHeight;
 @property (nonatomic) BOOL isLive;
 - (BOOL)hasHLS;
+- (BOOL)isRemuxed;                                          // the renditions are adaptive MP4 files converted by the proxy
 @end
 
 @interface TBPlayback : NSObject
