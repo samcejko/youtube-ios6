@@ -118,7 +118,10 @@ static void TBKeychainWrite(NSDictionary *tokens)
 
 - (NSString *)clientSecret
 {
-    return self.storedClientSecret.length ? self.storedClientSecret : TBGoogleDefaultClientSecret;
+    if (self.usesOwnClientId) {
+        return self.storedClientSecret;
+    }
+    return TBGoogleDefaultClientSecret;
 }
 
 - (void)setClientSecret:(NSString *)secret
@@ -131,12 +134,12 @@ static void TBKeychainWrite(NSDictionary *tokens)
 
 - (BOOL)usesOwnClientSecret
 {
-    return self.storedClientSecret.length > 0;
+    return self.usesOwnClientId && self.storedClientSecret.length > 0;
 }
 
 - (BOOL)usesCustomOAuthClient
 {
-    return [self usesOwnClientId] || [self usesOwnClientSecret];
+    return [self usesOwnClientId] && [self usesOwnClientSecret];
 }
 
 - (instancetype)init
@@ -149,7 +152,7 @@ static void TBKeychainWrite(NSDictionary *tokens)
         _storedClientId = kept[@"clientId"];
 #ifdef TB_GOOGLE_CLIENT_SECRET
         // the secret the build was given (a repository secret of the CI); one typed into Settings wins
-        if (!_storedClientSecret.length && strlen(TB_GOOGLE_CLIENT_SECRET) > 0) _storedClientSecret = @TB_GOOGLE_CLIENT_SECRET;
+        if (_storedClientId.length && !_storedClientSecret.length && strlen(TB_GOOGLE_CLIENT_SECRET) > 0) _storedClientSecret = @TB_GOOGLE_CLIENT_SECRET;
 #endif
         _accessToken = kept[@"access"];
         _refreshToken = kept[@"refresh"];
@@ -387,8 +390,11 @@ static void TBKeychainWrite(NSDictionary *tokens)
     }
     if (!self.clientSecret.length) { TBMain(^{ completion(nil, TBMakeError(TBErrorAuth, L(@"Enter the Google client secret in Settings first."))); }); return nil; }
     __weak TBAccount *weakSelf = self;
+    BOOL customClient = [self usesCustomOAuthClient];
+    NSString *refreshURL = customClient ? TBGoogleRefreshURL : TBGoogleTokenURL;
+    NSDictionary *headers = customClient ? nil : @{ @"User-Agent": TBTvUserAgent };
     NSDictionary *fields = @{ @"client_id": self.clientId, @"client_secret": self.clientSecret, @"refresh_token": self.refreshToken, @"grant_type": @"refresh_token" };
-    return [TBHTTP postForm:TBGoogleRefreshURL fields:fields completion:^(id json, NSInteger status, NSError *error) {
+    return [TBHTTP postForm:refreshURL headers:headers fields:fields completion:^(id json, NSInteger status, NSError *error) {
         TBAccount *s = weakSelf;
         NSDictionary *t = TBDict(json);
         if (TBStr(t[@"access_token"]).length) { [s keepTokensFrom:t]; completion(s.accessToken, nil); return; }

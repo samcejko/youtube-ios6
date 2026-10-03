@@ -1,5 +1,4 @@
 #import "TBInnertube.h"
-#import "TBAccount.h"
 #import "TBSettings.h"
 #import "TBUtils.h"
 #import "TBCommon.h"
@@ -21,7 +20,6 @@ static NSString * const TBInnertubeBase = @"https://www.youtube.com/youtubei/v1/
 static NSString * const TBWebVersion     = @"2.20250312.04.00";
 static NSString * const TBIOSVersion     = @"20.10.4";
 static NSString * const TBAndroidVersion = @"20.10.38";
-static NSString * const TBTVVersion      = @"7.20250209.19.00";
 
 #pragma mark - JSON helpers
 
@@ -291,74 +289,6 @@ static TBPlaylist *TBPlaylistFromRenderer(NSDictionary *r)
     return p;
 }
 
-static TBVideo *TBVideoFromTile(NSDictionary *tile)
-{
-    NSDictionary *onSelect = TBDict(tile[@"onSelectCommand"]);
-    NSDictionary *watch = TBDict(onSelect[@"watchEndpoint"]) ?: TBDict(onSelect[@"watchPlaylistEndpoint"]);
-    NSString *videoId = TBStr(watch[@"videoId"]) ?: TBVideoIdIn(tile);
-    if (!TBLooksLikeVideoId(videoId)) return nil;
-    TBVideo *v = [TBVideo videoWithId:videoId];
-
-    NSDictionary *metadata = TBDict(TBDict(tile[@"metadata"])[@"tileMetadataRenderer"]);
-    v.title = TBText(metadata[@"title"]) ?: TBText(tile[@"title"]);
-
-    v.thumbnailURL = TBThumbnailURL(tile[@"thumbnailRenderer"] ?: tile[@"thumbnail"]);
-    if (!v.thumbnailURL.length) {
-        NSDictionary *thumbVM = TBFindFirst(tile, @"thumbnailViewModel");
-        v.thumbnailURL = TBThumbnailURL(thumbVM);
-    }
-    if (!v.thumbnailURL.length) {
-        v.thumbnailURL = [v thumbnailURLForWidth:480];
-    }
-
-    NSDictionary *header = TBDict(TBDict(tile[@"header"])[@"tileHeaderRenderer"]);
-    if (header) {
-        NSString *dur = TBText(header[@"durationText"]) ?: TBText(header[@"thumbnailOverlays"]);
-        if (!dur.length) {
-            NSDictionary *status = TBFindFirst(header, @"thumbnailOverlayTimeStatusRenderer");
-            dur = TBText(status[@"text"]);
-        }
-        if (dur.length) {
-            v.lengthText = dur;
-            v.lengthSeconds = TBSecondsFromLengthText(dur);
-        }
-    }
-
-    NSArray *lines = TBArr(metadata[@"lines"]);
-    if (lines.count > 0) {
-        NSDictionary *line0 = TBDict(lines[0]);
-        NSDictionary *lr0 = TBDict(line0[@"lineRenderer"]);
-        NSArray *items0 = TBArr(lr0[@"items"]);
-        if (items0.count > 0) {
-            NSDictionary *item0 = TBDict(items0[0]);
-            NSDictionary *lineItem0 = TBDict(item0[@"lineItemRenderer"]);
-            v.channelName = TBText(lineItem0[@"text"]);
-            v.channelId = TBBrowseIdIn(lineItem0);
-        }
-    }
-    if (lines.count > 1) {
-        NSDictionary *line1 = TBDict(lines[1]);
-        NSDictionary *lr1 = TBDict(line1[@"lineRenderer"]);
-        NSArray *items1 = TBArr(lr1[@"items"]);
-        for (id it in items1) {
-            NSDictionary *lineItem = TBDict(TBDict(it)[@"lineItemRenderer"]);
-            NSString *t = TBText(lineItem[@"text"]);
-            if (!t.length) continue;
-            if ([t rangeOfString:@"view" options:NSCaseInsensitiveSearch].location != NSNotFound ||
-                [t rangeOfString:@"zhlédnutí" options:NSCaseInsensitiveSearch].location != NSNotFound) {
-                v.viewsText = t;
-            } else if ([t rangeOfString:@":"].location != NSNotFound && !v.lengthText.length) {
-                v.lengthText = t;
-                v.lengthSeconds = TBSecondsFromLengthText(t);
-            } else if (!v.publishedText.length) {
-                v.publishedText = t;
-            }
-        }
-    }
-    v.viewCount = TBNumberFromText(v.viewsText);
-    return v;
-}
-
 // Renderers that are items themselves; the walk does not descend into them
 static NSSet *TBItemKeys(void)
 {
@@ -366,7 +296,7 @@ static NSSet *TBItemKeys(void)
     static dispatch_once_t once;
     dispatch_once(&once, ^{
         keys = [NSSet setWithArray:@[ @"videoRenderer", @"compactVideoRenderer", @"gridVideoRenderer", @"playlistVideoRenderer", @"playlistPanelVideoRenderer",
-                                      @"videoWithContextRenderer", @"reelItemRenderer", @"shortsLockupViewModel", @"lockupViewModel", @"tileRenderer",
+                                      @"videoWithContextRenderer", @"reelItemRenderer", @"shortsLockupViewModel", @"lockupViewModel",
                                       @"channelRenderer", @"gridChannelRenderer", @"playlistRenderer", @"gridPlaylistRenderer", @"compactPlaylistRenderer",
                                       @"continuationItemRenderer" ]];
     });
@@ -406,8 +336,6 @@ static void TBWalk(id node, NSMutableArray *items, NSMutableArray *continuations
             id item = nil;
             if ([key isEqualToString:@"continuationItemRenderer"]) {
                 NSString *token = TBStr(TBDict(TBDict(r[@"continuationEndpoint"])[@"continuationCommand"])[@"token"]);
-                if (!token.length) token = TBStr(TBDict(r[@"continuationCommand"])[@"token"]);
-                if (!token.length) token = TBStr(TBDict(r[@"continuationEndpoint"])[@"token"]);
                 if (token.length) [continuations addObject:token];
                 continue;
             }
@@ -422,8 +350,6 @@ static void TBWalk(id node, NSMutableArray *items, NSMutableArray *continuations
                 TBVideo *v = TBVideoFromRenderer(r);
                 v.isShort = YES;
                 item = v;
-            } else if ([key isEqualToString:@"tileRenderer"]) {
-                item = TBVideoFromTile(r);
             } else if ([key isEqualToString:@"videoRenderer"] || [key hasSuffix:@"VideoRenderer"] || [key isEqualToString:@"videoWithContextRenderer"]) {
                 // (plain "videoRenderer" - the search results - has a small v, which the suffix test alone missed)
                 item = TBVideoFromRenderer(r);
@@ -448,7 +374,6 @@ static void TBWalk(id node, NSMutableArray *items, NSMutableArray *continuations
     switch (client) {
         case TBClientIOS: return [NSString stringWithFormat:@"com.google.ios.youtube/%@ (iPhone16,2; U; CPU iOS 18_3_2 like Mac OS X;)", TBIOSVersion];
         case TBClientAndroid: return [NSString stringWithFormat:@"com.google.android.youtube/%@ (Linux; U; Android 11) gzip", TBAndroidVersion];
-        case TBClientTV: return @"Mozilla/5.0 (SMART-TV; Linux; Tizen 6.0) AppleWebKit/537.36 (KHTML, like Gecko) SamsungBrowser/4.0 Chrome/76.0.3809.146 TV Safari/537.36";
         default: return @"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/134.0.0.0 Safari/537.36";
     }
 }
@@ -474,15 +399,6 @@ static void TBWalk(id node, NSMutableArray *items, NSMutableArray *continuations
             c[@"osName"] = @"Android";
             c[@"osVersion"] = @"11";
             break;
-        case TBClientTV:
-            c[@"clientName"] = @"TVHTML5";
-            c[@"clientVersion"] = TBTVVersion;
-            c[@"platform"] = @"TV";
-            c[@"deviceMake"] = @"Samsung";
-            c[@"deviceModel"] = @"SmartTV";
-            c[@"osName"] = @"Tizen";
-            c[@"osVersion"] = @"6.0";
-            break;
         default:
             c[@"clientName"] = @"WEB";
             c[@"clientVersion"] = TBWebVersion;
@@ -496,7 +412,6 @@ static void TBWalk(id node, NSMutableArray *items, NSMutableArray *continuations
     switch (client) {
         case TBClientIOS: return @"5";
         case TBClientAndroid: return @"3";
-        case TBClientTV: return @"85";
         default: return @"1";
     }
 }
@@ -504,23 +419,14 @@ static void TBWalk(id node, NSMutableArray *items, NSMutableArray *continuations
 + (TBHTTPTask *)call:(NSString *)endpoint body:(NSDictionary *)body client:(TBClient)client
           completion:(void (^)(NSDictionary *response, NSError *error))completion
 {
-    return [self call:endpoint body:body client:client token:nil completion:completion];
-}
-
-+ (TBHTTPTask *)call:(NSString *)endpoint body:(NSDictionary *)body client:(TBClient)client token:(NSString *)token
-          completion:(void (^)(NSDictionary *response, NSError *error))completion
-{
     NSMutableDictionary *full = [body mutableCopy] ?: [NSMutableDictionary dictionary];
     full[@"context"] = [self contextForClient:client];
     NSString *version = [[self contextForClient:client][@"client"] objectForKey:@"clientVersion"];
-    NSMutableDictionary *headers = [@{ @"User-Agent": [self userAgentForClient:client],
-                                       @"X-YouTube-Client-Name": [self clientNumber:client],
-                                       @"X-YouTube-Client-Version": version,
-                                       @"Origin": @"https://www.youtube.com",
-                                       @"Accept-Language": [TBSettings contentLanguage] } mutableCopy];
-    if (token.length) {
-        headers[@"Authorization"] = [NSString stringWithFormat:@"Bearer %@", token];
-    }
+    NSDictionary *headers = @{ @"User-Agent": [self userAgentForClient:client],
+                               @"X-YouTube-Client-Name": [self clientNumber:client],
+                               @"X-YouTube-Client-Version": version,
+                               @"Origin": @"https://www.youtube.com",
+                               @"Accept-Language": [TBSettings contentLanguage] };
     NSString *url = [NSString stringWithFormat:@"%@%@?prettyPrint=false", TBInnertubeBase, endpoint];
     return [TBHTTP postJSON:url headers:headers object:full retries:1 completion:^(id json, NSInteger status, NSError *error) {
         NSDictionary *response = TBDict(json);
@@ -622,40 +528,6 @@ static void TBWalk(id node, NSMutableArray *items, NSMutableArray *continuations
         if (continuation.length) scope = response[@"onResponseReceivedActions"] ?: (response[@"onResponseReceivedEndpoints"] ?: response);
         NSArray *items = [self itemsInNode:scope continuation:&next];
         completion(response, items, next, nil);
-    }];
-}
-
-+ (TBHTTPTask *)authenticatedBrowse:(NSString *)browseId params:(NSString *)params continuation:(NSString *)continuation
-                         completion:(void (^)(NSDictionary *response, NSArray *items, NSString *continuation, NSError *error))completion
-{
-    if (![[TBAccount shared] isSignedIn]) {
-        return [self browse:browseId params:params continuation:continuation completion:completion];
-    }
-    return [[TBAccount shared] withAccessToken:^(NSString *token, NSError *authError) {
-        if (!token.length) {
-            [self browse:browseId params:params continuation:continuation completion:completion];
-            return;
-        }
-        NSMutableDictionary *body = [NSMutableDictionary dictionary];
-        if (continuation.length) body[@"continuation"] = continuation;
-        else {
-            body[@"browseId"] = browseId ?: @"";
-            if (params.length) body[@"params"] = params;
-        }
-        TBClient client = [[TBAccount shared] usesCustomOAuthClient] ? TBClientWeb : TBClientTV;
-        [self call:@"browse" body:body client:client token:token completion:^(NSDictionary *response, NSError *error) {
-            if (error) { completion(nil, nil, nil, error); return; }
-            NSString *next = nil;
-            id scope = response;
-            NSArray *tabs = TBArr(TBDict(TBDict(response[@"contents"])[@"twoColumnBrowseResultsRenderer"])[@"tabs"]);
-            for (id tab in tabs) {
-                NSDictionary *t = TBDict(TBDict(tab)[@"tabRenderer"]);
-                if (TBBool(t[@"selected"]) && t[@"content"]) { scope = t[@"content"]; break; }
-            }
-            if (continuation.length) scope = response[@"onResponseReceivedActions"] ?: (response[@"onResponseReceivedEndpoints"] ?: response);
-            NSArray *items = [self itemsInNode:scope continuation:&next];
-            completion(response, items, next, nil);
-        }];
     }];
 }
 
@@ -810,55 +682,6 @@ static void TBWalk(id node, NSMutableArray *items, NSMutableArray *continuations
             if (videos.count) {
                 TBShelf *shelf = [[TBShelf alloc] init];
                 shelf.title = TBStr(TBDict(TBDict(response[@"metadata"])[@"channelMetadataRenderer"])[@"title"]) ?: L(@"Videos");
-                shelf.items = videos;
-                [shelves addObject:shelf];
-            }
-        }
-        completion(shelves, nil);
-    }];
-}
-
-+ (TBHTTPTask *)authenticatedShelvesOfPage:(NSString *)browseId completion:(void (^)(NSArray *shelves, NSError *error))completion
-{
-    if (![[TBAccount shared] isSignedIn]) {
-        return [self shelvesOfPage:browseId completion:completion];
-    }
-    return [self authenticatedBrowse:browseId params:nil continuation:nil completion:^(NSDictionary *response, NSArray *allItems, NSString *continuation, NSError *error) {
-        if (error) {
-            [self shelvesOfPage:browseId completion:completion];
-            return;
-        }
-        NSMutableArray *shelves = [NSMutableArray array];
-        NSMutableArray *renderers = [NSMutableArray array];
-        TBFindAll(response, @"shelfRenderer", renderers, 0);
-        TBFindAll(response, @"richShelfRenderer", renderers, 0);
-        TBFindAll(response, @"reelShelfRenderer", renderers, 0);
-        NSMutableSet *seen = [NSMutableSet set];
-        for (NSDictionary *r in renderers) {
-            NSString *title = TBText(r[@"title"]) ?: TBText(r[@"headerRenderer"]);
-            NSArray *items = [self itemsInNode:r[@"content"] ?: (r[@"contents"] ?: r[@"items"]) continuation:NULL];
-            NSMutableArray *fresh = [NSMutableArray array];
-            for (id item in items) {
-                NSString *key = [item isKindOfClass:[TBVideo class]] ? [(TBVideo *)item videoId] : ([item isKindOfClass:[TBPlaylist class]] ? [(TBPlaylist *)item playlistId] : [(TBChannel *)item channelId]);
-                if (!key.length || [seen containsObject:key]) continue;
-                [seen addObject:key];
-                [fresh addObject:item];
-            }
-            if (!fresh.count) continue;
-            TBShelf *shelf = [[TBShelf alloc] init];
-            shelf.title = title.length ? title : L(@"Recommended");
-            shelf.items = fresh;
-            NSDictionary *endpoint = TBFindFirst(r[@"endpoint"] ?: r[@"title"], @"browseEndpoint");
-            shelf.browseId = TBStr(endpoint[@"browseId"]);
-            shelf.params = TBStr(endpoint[@"params"]);
-            [shelves addObject:shelf];
-        }
-        if (!shelves.count && allItems.count) {
-            NSMutableArray *videos = [NSMutableArray array];
-            for (id item in allItems) if ([item isKindOfClass:[TBVideo class]]) [videos addObject:item];
-            if (videos.count) {
-                TBShelf *shelf = [[TBShelf alloc] init];
-                shelf.title = TBStr(TBDict(TBDict(response[@"metadata"])[@"channelMetadataRenderer"])[@"title"]) ?: L(@"Recommended");
                 shelf.items = videos;
                 [shelves addObject:shelf];
             }
