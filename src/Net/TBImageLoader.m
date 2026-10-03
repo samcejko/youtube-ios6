@@ -445,11 +445,18 @@ static UIImage *TBDecodeImage(NSData *data, CGFloat maxPixels, BOOL animate, NSU
 
 - (void)setImageURL:(NSString *)url placeholder:(UIImage *)placeholder
 {
+    [self setImageURL:url fallback:nil placeholder:placeholder];
+}
+
+- (void)setImageURL:(NSString *)url fallback:(NSString *)fallback placeholder:(UIImage *)placeholder
+{
     TBImageLoader *loader = [TBImageLoader shared];
     if (self.token) {
         [loader cancelToken:self.token];
         self.token = nil;
     }
+    if (!url.length) { url = fallback; fallback = nil; }
+    if ([fallback isEqualToString:url]) fallback = nil;
     self.imageURL = url;
     if (!url.length) {
         self.image = placeholder;
@@ -458,6 +465,11 @@ static UIImage *TBDecodeImage(NSData *data, CGFloat maxPixels, BOOL animate, NSU
     UIImage *cached = [loader cachedImageForURL:url];
     if (cached) {
         self.image = cached;
+        return;
+    }
+    if ([loader hasFailed:url] && fallback.length) {
+        // (known not to be there: straight to the second one)
+        [self setImageURL:fallback fallback:nil placeholder:placeholder];
         return;
     }
     self.image = placeholder;
@@ -470,6 +482,7 @@ static UIImage *TBDecodeImage(NSData *data, CGFloat maxPixels, BOOL animate, NSU
         if (!view || ![view.imageURL isEqualToString:expected]) return;
         view.token = nil;
         if (image) view.image = image;
+        else if (fallback.length) [view setImageURL:fallback fallback:nil placeholder:placeholder];
     }];
     if (!answered) self.token = token;
 }

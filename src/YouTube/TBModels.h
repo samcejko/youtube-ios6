@@ -155,3 +155,4 @@ NSString *TBText(id node);                                  // {"simpleText"}, {
 NSString *TBThumbnailURL(id node);                          // the largest of {"thumbnails":[{url,width}]} or {"sources":[...]}
 long long TBNumberFromText(NSString *text);                 // "67,046 views" -> 67046, "1.2M" -> 1200000
 NSString *TBAbsoluteURL(NSString *url);                     // "//yt3..." -> "https://yt3..."
+NSString *TBImageURL(NSString *url);                        // a picture URL this system can decode (YouTube's WebP variants turned into JPEG ones)

@@ -294,8 +294,10 @@ static const CGFloat kRowThumbWidth = 136;
 
 - (void)configureWithVideo:(TBVideo *)video
 {
-    NSString *url = video.thumbnailURL.length ? video.thumbnailURL : [NSString stringWithFormat:@"https://i.ytimg.com/vi/%@/oar2.jpg", video.videoId ?: @""];
-    [self.thumbnail setImageURL:url placeholder:[[TBTheme shared] thumbnailPlaceholder]];
+    // hqdefault (16 KB) has the upright picture in its middle, between black bars that the aspect-fill crops away;
+    // the upright "oar2" picture itself is ten times the size - too much for a grid of them on this hardware
+    NSString *url = video.videoId.length ? [video thumbnailURLForWidth:480] : video.thumbnailURL;
+    [self.thumbnail setImageURL:url fallback:video.thumbnailURL placeholder:[[TBTheme shared] thumbnailPlaceholder]];
     self.titleLabel.text = video.title ?: @"";
     self.viewsLabel.text = video.viewsText ?: @"";
 }

@@ -35,6 +35,27 @@ NSString *TBAbsoluteURL(NSString *url)
     return url;
 }
 
+// iOS 6 has no WebP decoder. i.ytimg.com answers with WebP whenever the "sqp" query is there (whatever the Accept
+// header says), and the avatar servers when the size options carry "-rw": both are turned into their JPEG form.
+NSString *TBImageURL(NSString *url)
+{
+    url = TBAbsoluteURL(url);
+    if (!url.length) return url;
+    NSRange query = [url rangeOfString:@"?"];
+    if ([url rangeOfString:@"ytimg.com/"].location != NSNotFound && query.location != NSNotFound) return [url substringToIndex:query.location];
+    if ([url rangeOfString:@"ggpht.com/"].location != NSNotFound || [url rangeOfString:@"googleusercontent.com/"].location != NSNotFound) {
+        NSRange options = [url rangeOfString:@"=" options:NSBackwardsSearch];
+        if (options.location != NSNotFound && options.location > [url rangeOfString:@"/" options:NSBackwardsSearch].location) {
+            NSString *spec = [url substringFromIndex:options.location + 1];
+            NSMutableArray *parts = [[spec componentsSeparatedByString:@"-"] mutableCopy];
+            [parts removeObject:@"rw"];
+            [parts removeObject:@"rwu"];
+            return [[url substringToIndex:options.location + 1] stringByAppendingString:[parts componentsJoinedByString:@"-"]];
+        }
+    }
+    return url;
+}
+
 NSString *TBThumbnailURL(id node)
 {
     NSDictionary *d = TBDict(node);
@@ -54,7 +75,7 @@ NSString *TBThumbnailURL(id node)
         if (!TBStr(t[@"url"]).length) continue;
         if (!best || TBInt(t[@"width"]) > TBInt(best[@"width"])) best = t;
     }
-    return TBAbsoluteURL(TBStr(best[@"url"]));
+    return TBImageURL(TBStr(best[@"url"]));
 }
 
 long long TBNumberFromText(NSString *text)

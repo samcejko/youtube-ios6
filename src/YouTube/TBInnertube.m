@@ -802,7 +802,7 @@ static void TBWalk(id node, NSMutableArray *items, NSMutableArray *continuations
             NSDictionary *author = TBDict(payload[@"author"]);
             c.authorName = TBStr(author[@"displayName"]);
             c.authorChannelId = TBStr(author[@"channelId"]);
-            c.authorAvatarURL = TBAbsoluteURL(TBStr(author[@"avatarThumbnailUrl"]));
+            c.authorAvatarURL = TBImageURL(TBStr(author[@"avatarThumbnailUrl"]));
             c.isCreator = TBBool(author[@"isCreator"]);
             NSDictionary *toolbar = TBDict(payload[@"toolbar"]);
             c.likesText = TBStr(toolbar[@"likeCountNotliked"]) ?: TBStr(toolbar[@"likeCountLiked"]);

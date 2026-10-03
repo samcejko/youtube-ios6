@@ -92,12 +92,7 @@ static void TBSendStatus(int fd, NSInteger status)
 // sound renditions with an ID3 tag or an ADTS sync word, MP4 with "ftyp").
 static NSString *TBContentTypeForPath(NSString *path, NSString *upstream, NSData *firstBytes)
 {
-    NSString *ext = [[path pathExtension] lowercaseString];
-    if ([ext isEqualToString:@"ts"]) return @"video/MP2T";
-    if ([ext isEqualToString:@"mp4"] || [ext isEqualToString:@"m4v"]) return @"video/mp4";
-    if ([ext isEqualToString:@"m4s"]) return @"video/iso.segment";
-    if ([ext isEqualToString:@"aac"]) return @"audio/aac";
-    if ([ext isEqualToString:@"m3u8"]) return @"application/vnd.apple.mpegurl";
+    // (the bytes first: YouTube's sound segments are called ".ts" too, and they are packed AAC, not transport streams)
     if (firstBytes.length >= 8) {
         const unsigned char *b = firstBytes.bytes;
         if (b[0] == 0x47 && (firstBytes.length < 189 || b[188] == 0x47)) return @"video/MP2T";
@@ -105,6 +100,12 @@ static NSString *TBContentTypeForPath(NSString *path, NSString *upstream, NSData
         if (b[0] == 0xFF && (b[1] & 0xF6) == 0xF0) return @"audio/aac";
         if (b[4] == 'f' && b[5] == 't' && b[6] == 'y' && b[7] == 'p') return @"video/mp4";
     }
+    NSString *ext = [[path pathExtension] lowercaseString];
+    if ([ext isEqualToString:@"ts"]) return @"video/MP2T";
+    if ([ext isEqualToString:@"mp4"] || [ext isEqualToString:@"m4v"]) return @"video/mp4";
+    if ([ext isEqualToString:@"m4s"]) return @"video/iso.segment";
+    if ([ext isEqualToString:@"aac"]) return @"audio/aac";
+    if ([ext isEqualToString:@"m3u8"]) return @"application/vnd.apple.mpegurl";
     if (upstream.length && [upstream rangeOfString:@"octet-stream"].location == NSNotFound) return upstream;
     return @"application/octet-stream";
 }
@@ -412,8 +413,9 @@ static BOOL TBProxyPortAnswers(uint16_t port)
         [self sendPlaylist:entry.text method:method to:fd];
         return;
     }
+    NSString *label = [NSString stringWithFormat:@"%@/%@", kind, parts[3]];
     if (entry.kind == TBProxyEntryFile && [kind isEqualToString:@"u"]) {
-        [self relayURL:entry.url method:method headers:headers viaDirectory:NO to:fd];
+        [self relayURL:entry.url method:method headers:headers viaDirectory:NO label:label to:fd];
         return;
     }
     if (entry.kind == TBProxyEntryDirectory && [kind isEqualToString:@"d"]) {
@@ -427,9 +429,10 @@ static BOOL TBProxyPortAnswers(uint16_t port)
             url = [[NSURL URLWithString:rest relativeToURL:entry.url] absoluteURL];
             if (!url.host.length) { TBSendStatus(fd, 404); return; }
         }
-        [self relayURL:url method:method headers:headers viaDirectory:YES to:fd];
+        [self relayURL:url method:method headers:headers viaDirectory:YES label:label to:fd];
         return;
     }
+    [self countServed:@"HTTP 404" bytes:0];
     TBSendStatus(fd, 404);
 }
 
@@ -447,7 +450,7 @@ static BOOL TBProxyPortAnswers(uint16_t port)
 
 // One request of the player, through the app's network layer, on this thread: redirects followed here, the body
 // passed on as it comes (a player that lets go ends the request), a playlist rewritten first.
-- (void)relayURL:(NSURL *)startURL method:(NSString *)method headers:(NSDictionary *)playerHeaders viaDirectory:(BOOL)viaDirectory to:(int)fd
+- (void)relayURL:(NSURL *)startURL method:(NSString *)method headers:(NSDictionary *)playerHeaders viaDirectory:(BOOL)viaDirectory label:(NSString *)label to:(int)fd
 {
     NSURL *url = startURL;
     for (int hop = 0; hop < TBProxyMaxRedirects; hop++) {
@@ -472,6 +475,7 @@ static BOOL TBProxyPortAnswers(uint16_t port)
         __block NSDictionary *pendingHeaders = nil;
         __block BOOL pendingKeepLength = YES;
         __block NSString *servedType = nil;
+        __block NSUInteger sentBytes = 0;
         NSMutableData *collected = [NSMutableData data];
         NSURL *current = url;
         __weak TBHTTPRequest *weakRequest = r;
@@ -487,8 +491,8 @@ static BOOL TBProxyPortAnswers(uint16_t port)
             if (playlist) { playlistStatus = status; return; }
             NSString *encoding = [hdrs[@"content-encoding"] lowercaseString] ?: @"";
             BOOL keepLength = !encoding.length || [encoding isEqualToString:@"identity"];
-            if (status < 300 && ![current.path pathExtension].length && status != 204) {
-                // the type comes from the first bytes: the head waits for them
+            if (status < 300 && status != 204) {
+                // the type comes from the first bytes: the head waits for them (they follow right away)
                 pendingStatus = status;
                 pendingHeaders = hdrs;
                 pendingKeepLength = keepLength;
@@ -511,11 +515,16 @@ static BOOL TBProxyPortAnswers(uint16_t port)
                 if (!TBSendString(fd, TBResponseHead(pendingStatus, pendingHeaders, contentType, pendingKeepLength))) { broken = YES; [weakRequest cancel]; return; }
             }
             if (!TBSendAll(fd, data.bytes, data.length)) { broken = YES; [weakRequest cancel]; return; }
+            sentBytes += data.length;
             [weakSelf countServed:servedType bytes:data.length];
         };
         __block NSError *failure = nil;
         r.onComplete = ^(NSError *error) { failure = error; };
         [r runSynchronously];
+        if (self.logRequests && !playlist && !redirect) {
+            TBLog(@"Proxy %@ done: %@, %lu bytes%@%@", label, servedType ?: @"no head", (unsigned long)sentBytes, broken ? @", player let go" : @"",
+                  failure ? [NSString stringWithFormat:@", %@", failure.localizedDescription] : @"");
+        }
         if (broken) return;
         if (!headSent && pendingHeaders && !redirect) {
             // an empty body (or a HEAD request): the head goes out as it is

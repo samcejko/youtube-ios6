@@ -37,4 +37,6 @@ extern NSString * const TBImageDidLoadNotification;
 @property (nonatomic, copy, readonly) NSString *imageURL;
 @property (nonatomic) CGFloat maxPixels;
 - (void)setImageURL:(NSString *)url placeholder:(UIImage *)placeholder;
+// The same, with a second URL to try when the first one fails (a picture the server may not have)
+- (void)setImageURL:(NSString *)url fallback:(NSString *)fallback placeholder:(UIImage *)placeholder;
 @end

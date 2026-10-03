@@ -238,13 +238,19 @@ static void *TBShortStatusContext = &TBShortStatusContext;
     self.viewsLabel.text = video.viewsText ?: @"";
     self.counterLabel.text = self.videos.count > 1 ? [NSString stringWithFormat:@"%lu / %lu", (unsigned long)self.index + 1, (unsigned long)self.videos.count] : @"";
     [self.view setNeedsLayout];
-    // the poster while the video loads
-    NSString *posterURL = video.thumbnailURL.length ? video.thumbnailURL : [NSString stringWithFormat:@"https://i.ytimg.com/vi/%@/oar2.jpg", video.videoId];
+    // the poster while the video loads (the upright picture; not every short has one)
+    NSString *posterURL = [NSString stringWithFormat:@"https://i.ytimg.com/vi/%@/oar2.jpg", video.videoId];
+    NSString *fallbackURL = video.thumbnailURL.length ? video.thumbnailURL : [video thumbnailURLForWidth:640];
     self.poster.image = nil;
     __weak TBShortsViewController *weakSelf = self;
     [[TBImageLoader shared] loadImage:posterURL maxPixels:720 completion:^(UIImage *image) {
         TBShortsViewController *s = weakSelf;
-        if (s && s.loadGeneration == generation && !s.item) s.poster.image = image;
+        if (!s || s.loadGeneration != generation || s.item) return;
+        if (image) { s.poster.image = image; return; }
+        [[TBImageLoader shared] loadImage:fallbackURL maxPixels:720 completion:^(UIImage *other) {
+            TBShortsViewController *s2 = weakSelf;
+            if (s2 && s2.loadGeneration == generation && !s2.item) s2.poster.image = other;
+        }];
     }];
     [self.spinner startAnimating];
     [[TBLibrary shared] addToHistory:video];
