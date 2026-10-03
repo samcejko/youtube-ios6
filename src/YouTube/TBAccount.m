@@ -89,6 +89,10 @@ static void TBKeychainWrite(NSDictionary *tokens)
         _subscriptionIds = [NSMutableDictionary dictionary];
         NSDictionary *kept = TBKeychainRead();
         _clientSecret = kept[@"secret"];
+#ifdef TB_GOOGLE_CLIENT_SECRET
+        // the secret the build was given (a repository secret of the CI); one typed into Settings wins
+        if (!_clientSecret.length && strlen(TB_GOOGLE_CLIENT_SECRET) > 0) _clientSecret = @TB_GOOGLE_CLIENT_SECRET;
+#endif
         _accessToken = kept[@"access"];
         _refreshToken = kept[@"refresh"];
         _tokenExpiry = [kept[@"expiry"] isKindOfClass:[NSDate class]] ? kept[@"expiry"] : nil;
