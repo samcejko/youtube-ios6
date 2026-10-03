@@ -12,7 +12,8 @@ NSString * const TBAccountDidChangeNotification = @"TBAccountDidChangeNotificati
 // (from their own Google Cloud project, where they are a test user) - see the README. What is entered wins over the
 // built-in default, and both live in the device's keychain.
 static NSString * const TBGoogleDefaultClientID = @"1045854580563-l69l1lcri5tbkh4cscffhh58tgq3pah8.apps.googleusercontent.com";
-static NSString * const TBGoogleScope = @"https://www.googleapis.com/auth/youtube";
+// youtube.force-ssl covers subscriptions, ratings and playlists like the plain youtube scope, and also posting comments
+static NSString * const TBGoogleScope = @"https://www.googleapis.com/auth/youtube.force-ssl";
 static NSString * const TBGoogleDeviceCodeURL = @"https://oauth2.googleapis.com/device/code";
 static NSString * const TBGoogleTokenURL = @"https://oauth2.googleapis.com/token";
 static NSString * const TBGoogleRevokeURL = @"https://oauth2.googleapis.com/revoke";
@@ -478,6 +479,46 @@ static NSString *TBAPIThumbnail(NSDictionary *thumbnails)
     return [self api:@"GET" path:@"videos/getRating" query:@{ @"id": videoId ?: @"" } body:nil completion:^(NSDictionary *json, NSError *error) {
         if (error) { completion(nil, error); return; }
         completion(TBStr(TBDict([TBArr(json[@"items"]) firstObject])[@"rating"]) ?: @"none", nil);
+    }];
+}
+
+#pragma mark - Comments
+
+// A TBComment from a Data API comment resource's snippet (the account's just-posted comment or reply)
+- (TBComment *)commentFromSnippet:(NSDictionary *)snippet commentId:(NSString *)commentId
+{
+    TBComment *c = [[TBComment alloc] init];
+    c.commentId = commentId;
+    c.text = TBStr(snippet[@"textDisplay"]) ?: TBStr(snippet[@"textOriginal"]);
+    c.authorName = TBStr(snippet[@"authorDisplayName"]) ?: self.channelTitle;
+    c.authorChannelId = TBStr(TBDict(snippet[@"authorChannelId"])[@"value"]) ?: self.channelId;
+    c.authorAvatarURL = TBImageURL(TBStr(snippet[@"authorProfileImageUrl"])) ?: self.avatarURL;
+    c.publishedText = L(@"just now");
+    c.likesText = nil;
+    return c;
+}
+
+- (TBHTTPTask *)postComment:(NSString *)text onVideo:(NSString *)videoId completion:(void (^)(TBComment *comment, NSError *error))completion
+{
+    __weak TBAccount *weakSelf = self;
+    id body = @{ @"snippet": @{ @"videoId": videoId ?: @"", @"topLevelComment": @{ @"snippet": @{ @"textOriginal": text ?: @"" } } } };
+    return [self api:@"POST" path:@"commentThreads" query:@{ @"part": @"snippet" } body:body completion:^(NSDictionary *json, NSError *error) {
+        if (error) { completion(nil, error); return; }
+        NSDictionary *top = TBDict(TBDict(TBDict(json[@"snippet"])[@"topLevelComment"]));
+        TBComment *c = [weakSelf commentFromSnippet:TBDict(top[@"snippet"]) commentId:TBStr(top[@"id"]) ?: TBStr(json[@"id"])];
+        completion(c, nil);
+    }];
+}
+
+- (TBHTTPTask *)replyWithText:(NSString *)text toComment:(NSString *)parentId completion:(void (^)(TBComment *comment, NSError *error))completion
+{
+    __weak TBAccount *weakSelf = self;
+    id body = @{ @"snippet": @{ @"parentId": parentId ?: @"", @"textOriginal": text ?: @"" } };
+    return [self api:@"POST" path:@"comments" query:@{ @"part": @"snippet" } body:body completion:^(NSDictionary *json, NSError *error) {
+        if (error) { completion(nil, error); return; }
+        TBComment *c = [weakSelf commentFromSnippet:TBDict(json[@"snippet"]) commentId:TBStr(json[@"id"])];
+        c.isReply = YES;
+        completion(c, nil);
     }];
 }
 

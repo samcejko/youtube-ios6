@@ -2,6 +2,7 @@
 #import "TBPlayerView.h"
 #import "TBCells.h"
 #import "TBCommentsViewController.h"
+#import "TBExternalOpen.h"
 #import "TBNavigator.h"
 #import "TBInnertube.h"
 #import "TBPlayback.h"
@@ -1065,10 +1066,7 @@ typedef NS_ENUM(NSInteger, TBWatchSection) {
 - (void)shareTapped
 {
     NSString *link = [NSString stringWithFormat:@"https://youtu.be/%@", self.video.videoId ?: @""];
-    [UIPasteboard generalPasteboard].string = link;
-    self.skipLabel.text = L(@"Link copied");
-    self.skipLabel.hidden = NO;
-    self.skipNoteUntil = [NSDate timeIntervalSinceReferenceDate] + 2;
+    [TBExternalOpen presentShareSheetForURL:[NSURL URLWithString:link] from:self anchor:nil];
 }
 
 - (void)subscribeTapped
@@ -1286,6 +1284,7 @@ typedef NS_ENUM(NSInteger, TBWatchSection) {
             break;
         case TBWatchSectionComments: {
             TBCommentsViewController *comments = [[TBCommentsViewController alloc] initWithToken:self.info.commentsToken title:L(@"Comments")];
+            comments.videoId = self.video.videoId;   // (a signed-in account can post here)
             [TBNavigator showPage:comments from:self];
             break;
         }

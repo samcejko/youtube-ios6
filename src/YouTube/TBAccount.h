@@ -41,6 +41,9 @@ extern NSString * const TBAccountDidChangeNotification;
 // "like", "dislike" or "none"
 - (TBHTTPTask *)rateVideo:(NSString *)videoId rating:(NSString *)rating completion:(void (^)(NSError *error))completion;
 - (TBHTTPTask *)ratingOfVideo:(NSString *)videoId completion:(void (^)(NSString *rating, NSError *error))completion;
+// Posting a top-level comment on a video, or a reply to a comment (the new comment is returned for the list)
+- (TBHTTPTask *)postComment:(NSString *)text onVideo:(NSString *)videoId completion:(void (^)(TBComment *comment, NSError *error))completion;
+- (TBHTTPTask *)replyWithText:(NSString *)text toComment:(NSString *)parentId completion:(void (^)(TBComment *comment, NSError *error))completion;
 // The liked videos (playlist "LL") and the account's own playlists, a page at a time
 - (TBHTTPTask *)likedVideosPage:(NSString *)pageToken completion:(TBItemsCompletion)completion;
 - (TBHTTPTask *)playlistsPage:(NSString *)pageToken completion:(TBItemsCompletion)completion;

@@ -1,15 +1,18 @@
 #import "TBCommentsViewController.h"
 #import "TBCells.h"
 #import "TBInnertube.h"
+#import "TBAccount.h"
 #import "TBNavigator.h"
+#import "TBUtils.h"
 #import "TBTheme.h"
 #import "TBCommon.h"
 
-@interface TBCommentsViewController ()
+@interface TBCommentsViewController () <UIAlertViewDelegate>
 @property (nonatomic, copy) NSString *token;
 @property (nonatomic, copy) NSString *nextToken;
 @property (nonatomic, strong) NSMutableArray *comments;
 @property (nonatomic, strong) TBHTTPTask *task;
+@property (nonatomic, strong) TBHTTPTask *postTask;
 @property (nonatomic) BOOL loading;
 @property (nonatomic) BOOL loadedOnce;
 @property (nonatomic, strong) UILabel *messageLabel;
@@ -33,13 +36,23 @@
 - (void)dealloc
 {
     [_task cancel];
+    [_postTask cancel];
     [[NSNotificationCenter defaultCenter] removeObserver:self];
+}
+
+// The account can write here: a top-level comment when this is a video's comments, a reply on a replies screen
+- (BOOL)canPost
+{
+    return [[TBAccount shared] isSignedIn] && (self.videoId.length || self.replyParentId.length);
 }
 
 - (void)viewDidLoad
 {
     [super viewDidLoad];
     [self.tableView registerClass:[TBCommentCell class] forCellReuseIdentifier:[TBCommentCell reuseIdentifier]];
+    if ([self canPost]) {
+        self.navigationItem.rightBarButtonItem = [[UIBarButtonItem alloc] initWithTitle:(self.replyParentId.length ? L(@"Reply") : L(@"Add")) style:UIBarButtonItemStyleBordered target:self action:@selector(composeTapped)];
+    }
     self.messageLabel = [[UILabel alloc] initWithFrame:CGRectZero];
     self.messageLabel.backgroundColor = [UIColor clearColor];
     self.messageLabel.numberOfLines = 0;
@@ -154,10 +167,43 @@
     TBComment *comment = self.comments[(NSUInteger)indexPath.row];
     if (comment.repliesToken.length) {
         TBCommentsViewController *replies = [[TBCommentsViewController alloc] initWithToken:comment.repliesToken title:L(@"Replies")];
+        replies.replyParentId = comment.commentId;   // (a signed-in account can reply here)
         [self.navigationController pushViewController:replies animated:YES];
     } else if (comment.authorChannelId.length) {
         [TBNavigator openChannelId:comment.authorChannelId from:self];
     }
+}
+
+#pragma mark - Posting
+
+- (void)composeTapped
+{
+    UIAlertView *alert = [[UIAlertView alloc] initWithTitle:(self.replyParentId.length ? L(@"Reply") : L(@"Add a comment"))
+                                                   message:nil delegate:self cancelButtonTitle:L(@"Cancel") otherButtonTitles:L(@"Post"), nil];
+    alert.alertViewStyle = UIAlertViewStylePlainTextInput;
+    alert.tag = 90;
+    [alert show];
+}
+
+- (void)alertView:(UIAlertView *)alertView clickedButtonAtIndex:(NSInteger)buttonIndex
+{
+    if (alertView.tag != 90 || buttonIndex == alertView.cancelButtonIndex) return;
+    NSString *text = [[alertView textFieldAtIndex:0].text stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceAndNewlineCharacterSet]];
+    if (!text.length) return;
+    __weak TBCommentsViewController *weakSelf = self;
+    void (^done)(TBComment *, NSError *) = ^(TBComment *comment, NSError *error) {
+        TBCommentsViewController *s = weakSelf;
+        if (!s) return;
+        s.postTask = nil;
+        if (error || !comment) { [TBUtils alertWithTitle:L(@"Comment") message:error.localizedDescription ?: L(@"The comment could not be posted.")]; return; }
+        [s.comments insertObject:comment atIndex:0];
+        s.messageLabel.hidden = YES;
+        [s.tableView reloadData];
+        [s.tableView scrollToRowAtIndexPath:[NSIndexPath indexPathForRow:0 inSection:0] atScrollPosition:UITableViewScrollPositionTop animated:YES];
+    };
+    [self.postTask cancel];
+    if (self.replyParentId.length) self.postTask = [[TBAccount shared] replyWithText:text toComment:self.replyParentId completion:done];
+    else self.postTask = [[TBAccount shared] postComment:text onVideo:self.videoId completion:done];
 }
 
 - (void)tableView:(UITableView *)tableView willDisplayCell:(UITableViewCell *)cell forRowAtIndexPath:(NSIndexPath *)indexPath

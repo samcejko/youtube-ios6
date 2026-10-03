@@ -71,7 +71,9 @@
 "%@ likes, %@ dislikes (Return YouTube Dislike)" = "%@ palců nahoru, %@ dolů (Return YouTube Dislike)";
 "Liking needs a Google account, which the app does not use." = "Hodnocení vyžaduje účet Google, který aplikace nepoužívá.";
 "This video has no captions." = "Toto video nemá titulky.";
-"Link copied" = "Odkaz zkopírován";
+"Copy link" = "Kopírovat odkaz";
+"Open in Safari" = "Otevřít v Safari";
+"Open in Surfari" = "Otevřít v Surfari";
 "Skipped: %@" = "Přeskočeno: %@";
 "Subscribe" = "Odebírat";
 "Subscribed ✓" = "Odebíráno ✓";
@@ -139,6 +141,12 @@
 "Nothing was found at this address." = "Na této adrese nic není.";
 "Comments are turned off for this video." = "Komentáře jsou u tohoto videa vypnuté.";
 "No comments yet." = "Zatím žádné komentáře.";
+"Comment" = "Komentář";
+"Add" = "Přidat";
+"Add a comment" = "Přidat komentář";
+"Reply" = "Odpovědět";
+"Post" = "Odeslat";
+"The comment could not be posted." = "Komentář se nepodařilo odeslat.";
 "Search YouTube" = "Hledat na YouTube";
 "Recent searches" = "Poslední hledání";
 "Suggestions" = "Návrhy";
