@@ -303,6 +303,9 @@ static NSDictionary *TBParseAttributes(NSString *list)
         NSString *master = [self masterPlaylistForVariants:@[ v ] audio:source.audioRenditions startingWith:v];
         if (chosen) *chosen = isAuto ? nil : v;   // (nil keeps the quality menu on "Auto")
         if (title) *title = isAuto ? L(@"Auto") : [v title];
+        NSRange itag = [v.url rangeOfString:@"/itag/"];
+        NSString *itagStr = itag.location != NSNotFound ? [v.url substringWithRange:NSMakeRange(itag.location + 6, MIN((NSUInteger)4, v.url.length - itag.location - 6))] : @"?";
+        TBLog(@"Playback: single rendition %@ %ldx%ld itag %@%@", [v title], (long)v.width, (long)v.height, itagStr, v.dash ? @" (dash)" : @" (hls)");
         NSString *url = [proxy proxyURLForPlaylistText:master];
         return url ? [NSURL URLWithString:url] : nil;
     }
