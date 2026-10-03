@@ -163,13 +163,6 @@ static void TBKeychainWrite(NSDictionary *tokens)
         _channelId = [d stringForKey:@"accountChannelId"];
         _handle = [d stringForKey:@"accountHandle"];
         _avatarURL = [d stringForKey:@"accountAvatar"];
-        if (_refreshToken.length) {
-            TBMain(^{
-                if (![[TBLibrary shared] subscriptions].count) {
-                    [[TBAccount shared] syncSubscriptions:nil];
-                }
-            });
-        }
     }
     return self;
 }
