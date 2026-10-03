@@ -154,15 +154,22 @@ static const NSInteger TBMaxRedirects = 5;
     return [self request:@"POST" url:url headers:h body:body retries:retries completion:[self jsonHandler:completion]];
 }
 
-+ (TBHTTPTask *)postForm:(NSString *)url fields:(NSDictionary *)fields completion:(TBJSONCompletion)completion
++ (TBHTTPTask *)postForm:(NSString *)url headers:(NSDictionary *)headers fields:(NSDictionary *)fields completion:(TBJSONCompletion)completion
 {
     NSMutableArray *pairs = [NSMutableArray array];
     for (NSString *key in fields) {
         [pairs addObject:[NSString stringWithFormat:@"%@=%@", [TBUtils urlEncode:key], [TBUtils urlEncode:[fields[key] description]]]];
     }
     NSData *body = [[pairs componentsJoinedByString:@"&"] dataUsingEncoding:NSUTF8StringEncoding];
-    NSDictionary *h = @{ @"Content-Type": @"application/x-www-form-urlencoded", @"Accept": @"application/json" };
+    NSMutableDictionary *h = [NSMutableDictionary dictionaryWithDictionary:headers ?: @{}];
+    if (!h[@"Content-Type"]) h[@"Content-Type"] = @"application/x-www-form-urlencoded";
+    if (!h[@"Accept"]) h[@"Accept"] = @"application/json";
     return [self request:@"POST" url:url headers:h body:body retries:0 completion:[self jsonHandler:completion]];
+}
+
++ (TBHTTPTask *)postForm:(NSString *)url fields:(NSDictionary *)fields completion:(TBJSONCompletion)completion
+{
+    return [self postForm:url headers:nil fields:fields completion:completion];
 }
 
 @end

@@ -20,6 +20,7 @@
 + (NSString *)urlEncode:(NSString *)string;                 // RFC 3986 unreserved characters stay
 + (NSString *)sha1:(NSString *)string;
 + (NSString *)base64Encode:(NSData *)data;
++ (NSData *)base64Decode:(NSString *)string;
 + (id)JSONObjectFromData:(NSData *)data;
 + (NSData *)JSONDataFromObject:(id)object;
 + (NSDictionary *)parseQuery:(NSString *)query;             // "a=1&b=2" (percent decoding applied)

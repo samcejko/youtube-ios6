@@ -208,6 +208,47 @@ static BOOL TBCodePointHasNoGlyph(UTF32Char c)
     return out;
 }
 
++ (NSData *)base64Decode:(NSString *)string
+{
+    if (!string.length) return nil;
+    NSString *clean = string;
+    NSRange marker = [clean rangeOfString:@"base64," options:NSCaseInsensitiveSearch];
+    if (marker.location != NSNotFound) {
+        clean = [clean substringFromIndex:marker.location + marker.length];
+    }
+    static int8_t decodeTable[256];
+    static dispatch_once_t once;
+    dispatch_once(&once, ^{
+        memset(decodeTable, -1, sizeof(decodeTable));
+        for (int i = 'A'; i <= 'Z'; i++) decodeTable[i] = (int8_t)(i - 'A');
+        for (int i = 'a'; i <= 'z'; i++) decodeTable[i] = (int8_t)(i - 'a' + 26);
+        for (int i = '0'; i <= '9'; i++) decodeTable[i] = (int8_t)(i - '0' + 52);
+        decodeTable[(uint8_t)'+'] = 62;
+        decodeTable[(uint8_t)'/'] = 63;
+    });
+
+    const char *chars = [clean UTF8String];
+    if (!chars) return nil;
+    size_t len = strlen(chars);
+    NSMutableData *data = [NSMutableData dataWithCapacity:(len * 3) / 4];
+    uint32_t buffer = 0;
+    int bits = 0;
+    for (size_t i = 0; i < len; i++) {
+        uint8_t c = (uint8_t)chars[i];
+        if (c == '=') break;
+        int8_t val = decodeTable[c];
+        if (val == -1) continue;
+        buffer = (buffer << 6) | (uint32_t)val;
+        bits += 6;
+        if (bits >= 8) {
+            bits -= 8;
+            uint8_t byte = (uint8_t)((buffer >> bits) & 0xFF);
+            [data appendBytes:&byte length:1];
+        }
+    }
+    return data.length ? data : nil;
+}
+
 + (id)JSONObjectFromData:(NSData *)data
 {
     if (!data.length) return nil;

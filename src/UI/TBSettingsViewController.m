@@ -201,7 +201,7 @@ typedef NS_ENUM(NSInteger, TBSettingsSection) {
     switch ((TBSettingsSection)section) {
         case TBSectionAccount: return [[TBAccount shared] isSignedIn]
             ? L(@"Subscriptions and likes are linked to the account. The watch history and \"watch later\" stay on this device: YouTube's API does not offer them.")
-            : L(@"Sign in with a code at google.com/device, as a TV does. Create your own Google OAuth client (a 5-minute setup; see the README) and enter its ID and secret, or sign in with the built-in client if you are one of its test users.");
+            : L(@"Sign in by scanning the QR code with your phone or entering the code at youtube.com/activate. You can also specify a custom Google OAuth client ID and secret if desired.");
         case TBSectionPlayback: return L(@"This device decodes H.264 up to 1080p at 30 frames per second; renditions beyond that are left out of \"Automatic\". \"MP4 only\" plays the plain 360p file instead of the adaptive stream.");
         case TBSectionSponsorBlock: return L(@"Skips the parts of videos the SponsorBlock community marked (sponsor.ajay.app).");
         case TBSectionContent: return L(@"The language of titles and the region of the explore pages, as YouTube offers them.");
@@ -245,10 +245,10 @@ typedef NS_ENUM(NSInteger, TBSettingsSection) {
                 cell.accessoryType = UITableViewCellAccessoryDisclosureIndicator;
             } else if (row == 1) {
                 cell.textLabel.text = L(@"Google client ID");
-                cell.detailTextLabel.text = [account usesOwnClientId] ? L(@"Set") : L(@"Default");
+                cell.detailTextLabel.text = [account usesOwnClientId] ? L(@"Custom") : L(@"Default");
             } else {
                 cell.textLabel.text = L(@"Google client secret");
-                cell.detailTextLabel.text = [TBAccount isConfigured] ? L(@"Set") : L(@"Not set");
+                cell.detailTextLabel.text = [account usesOwnClientSecret] ? L(@"Custom") : L(@"Default");
             }
             break;
         }
@@ -367,13 +367,14 @@ typedef NS_ENUM(NSInteger, TBSettingsSection) {
 
 - (void)askForClientSecret
 {
-    UIAlertView *alert = [[UIAlertView alloc] initWithTitle:L(@"Google client secret") message:L(@"Paste the client secret (GOCSPX-…)") delegate:self
+    UIAlertView *alert = [[UIAlertView alloc] initWithTitle:L(@"Google client secret") message:L(@"Paste the client secret (GOCSPX-…). Leave empty for the built-in one.") delegate:self
                                           cancelButtonTitle:L(@"Cancel") otherButtonTitles:L(@"OK"), nil];
     alert.alertViewStyle = UIAlertViewStylePlainTextInput;
     UITextField *field = [alert textFieldAtIndex:0];
     field.autocapitalizationType = UITextAutocapitalizationTypeNone;
     field.autocorrectionType = UITextAutocorrectionTypeNo;
     field.secureTextEntry = YES;
+    field.text = [[TBAccount shared] usesOwnClientSecret] ? [TBAccount shared].clientSecret : @"";
     alert.tag = 71;
     [alert show];
 }
@@ -464,8 +465,7 @@ typedef NS_ENUM(NSInteger, TBSettingsSection) {
                 [alert show];
             }
         } else if (row == 0) {
-            if ([TBAccount isConfigured]) [self.navigationController pushViewController:[[TBGoogleLoginViewController alloc] init] animated:YES];
-            else { self.signInAfterSecret = YES; [self askForClientSecret]; }
+            [self.navigationController pushViewController:[[TBGoogleLoginViewController alloc] init] animated:YES];
         } else if (row == 1) {
             [self askForClientId];
         } else {

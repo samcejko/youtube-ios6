@@ -1,4 +1,5 @@
 #import <Foundation/Foundation.h>
+#import <UIKit/UIKit.h>
 #import "TBHTTP.h"
 #import "TBModels.h"
 #import "TBInnertube.h"
@@ -20,15 +21,16 @@ extern NSString * const TBAccountDidChangeNotification;
 @property (nonatomic, copy) NSString *clientId;             // the OAuth client id; the built-in default unless Settings set one
 @property (nonatomic, copy) NSString *clientSecret;         // setting either posts the notification
 - (BOOL)usesOwnClientId;                                    // a client id other than the built-in default was entered
+- (BOOL)usesOwnClientSecret;                                // a client secret other than the built-in default was entered
 - (BOOL)isSignedIn;
 @property (nonatomic, readonly, copy) NSString *channelTitle;   // the account's channel (after fetchProfile)
 @property (nonatomic, readonly, copy) NSString *channelId;
 @property (nonatomic, readonly, copy) NSString *handle;         // "@name"
 @property (nonatomic, readonly, copy) NSString *avatarURL;
 
-// The device flow: `codeHandler` gets the code to show (main thread), then the app polls until the user confirmed,
-// refused, or the code expired (completion on the main thread). Cancelling the task stops the polling.
-- (TBHTTPTask *)signInWithCodeHandler:(void (^)(NSString *userCode, NSString *verificationURL))codeHandler
+// The device flow: `codeHandler` gets the user code and verification URL (and optionally QR image) to show (main thread),
+// then the app polls until the user confirmed, refused, or the code expired (completion on the main thread).
+- (TBHTTPTask *)signInWithCodeHandler:(void (^)(NSString *userCode, NSString *verificationURL, UIImage *qrImage))codeHandler
                            completion:(void (^)(NSError *error))completion;
 - (void)signOut;
 

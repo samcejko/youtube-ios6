@@ -25,5 +25,6 @@ typedef void (^TBJSONCompletion)(id json, NSInteger status, NSError *error);
 + (TBHTTPTask *)postJSON:(NSString *)url headers:(NSDictionary *)headers object:(id)object retries:(NSInteger)retries
               completion:(TBJSONCompletion)completion;
 + (TBHTTPTask *)postForm:(NSString *)url fields:(NSDictionary *)fields completion:(TBJSONCompletion)completion;
++ (TBHTTPTask *)postForm:(NSString *)url headers:(NSDictionary *)headers fields:(NSDictionary *)fields completion:(TBJSONCompletion)completion;
 
 @end

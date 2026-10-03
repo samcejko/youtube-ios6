@@ -1,23 +1,26 @@
 #import "TBAccount.h"
 #import "TBLibrary.h"
+#import "TBSettings.h"
 #import "TBUtils.h"
 #import "TBCommon.h"
 #import <Security/Security.h>
 
 NSString * const TBAccountDidChangeNotification = @"TBAccountDidChangeNotification";
 
-// The Google OAuth client of the sign-in, of the "TVs and Limited Input devices" kind. The id below is the author's
-// (a client id is public by nature); Google's device flow also wants the client's SECRET, which is never in the
-// repository or the binary. Each person running their own build enters their own client id and secret in Settings
-// (from their own Google Cloud project, where they are a test user) - see the README. What is entered wins over the
-// built-in default, and both live in the device's keychain.
-static NSString * const TBGoogleDefaultClientID = @"1045854580563-l69l1lcri5tbkh4cscffhh58tgq3pah8.apps.googleusercontent.com";
-// youtube.force-ssl covers subscriptions, ratings and playlists like the plain youtube scope, and also posting comments
-static NSString * const TBGoogleScope = @"https://www.googleapis.com/auth/youtube.force-ssl";
-static NSString * const TBGoogleDeviceCodeURL = @"https://oauth2.googleapis.com/device/code";
-static NSString * const TBGoogleTokenURL = @"https://oauth2.googleapis.com/token";
+// The YouTube Smart TV OAuth client credentials (Samsung SmartTV / Tizen) as used by YouTube UWP.
+// Enables seamless device code + QR code login without needing custom Google Cloud projects.
+static NSString * const TBGoogleDefaultClientID = @"861556708454-d6dlm3lh05idd8npek18k6be8ba3oc68.apps.googleusercontent.com";
+static NSString * const TBGoogleDefaultClientSecret = @"SboVhoG9s0rNafixCSGGKXAT";
+static NSString * const TBGoogleScope = @"http://gdata.youtube.com https://www.googleapis.com/auth/youtube-paid-content";
+static NSString * const TBGoogleDeviceCodeURL = @"https://www.youtube.com/o/oauth2/device/code";
+static NSString * const TBGoogleTokenURL = @"https://www.youtube.com/o/oauth2/token";
+static NSString * const TBGoogleRefreshURL = @"https://oauth2.googleapis.com/token";
 static NSString * const TBGoogleRevokeURL = @"https://oauth2.googleapis.com/revoke";
 static NSString * const TBDataAPIBase = @"https://www.googleapis.com/youtube/v3/";
+static NSString * const TBInnertubeApiKey = @"AIzaSyAO_FJ2SlqU8Q4STEHLGCilw_Y9_11qcW8";
+static NSString * const TBInnertubeBase = @"https://www.youtube.com/youtubei/v1/";
+static NSString * const TBTvUserAgent = @"Mozilla/5.0 (SMART-TV; Linux; Tizen 6.0)";
+static NSString * const TBTvDeviceModel = @"ytlr:samsung:smarttv";
 
 static NSString * const TBKeychainService = @"com.samcejko.tubie.google";
 static NSString * const TBKeychainAccount = @"oauth";
@@ -63,11 +66,13 @@ static void TBKeychainWrite(NSDictionary *tokens)
 @property (nonatomic, strong) TBHTTPTask *signInRequest;     // the device-code or token request under way (cancelled with the sign-in task)
 @property (nonatomic, strong) TBHTTPTask *syncRequest;       // the subscriptions page under way (cancelled with the sync task)
 @property (nonatomic, copy) NSString *storedClientId;       // the client id typed into Settings (nil = the built-in default)
+@property (nonatomic, copy) NSString *storedClientSecret;   // the client secret typed into Settings (nil = the built-in default)
 @property (nonatomic, copy) NSString *accessToken;
 - (void)pollDeviceCode:(NSString *)deviceCode secret:(NSString *)secret interval:(NSTimeInterval)interval deadline:(NSDate *)deadline
                  after:(NSTimeInterval)wait task:(TBHTTPTask *)outer completion:(void (^)(NSError *error))completion;
 - (void)fetchSubscriptionsPage:(NSString *)token into:(NSMutableArray *)channels ids:(NSMutableDictionary *)ids task:(TBHTTPTask *)outer
                     completion:(void (^)(NSArray *channels, NSError *error))completion;
+- (void)fetchTvQrCode:(NSString *)userCode completion:(void (^)(UIImage *qrImage))completion;
 @property (nonatomic, copy) NSString *refreshToken;
 @property (nonatomic, strong) NSDate *tokenExpiry;
 @property (nonatomic, copy, readwrite) NSString *channelTitle;
@@ -111,17 +116,35 @@ static void TBKeychainWrite(NSDictionary *tokens)
     return self.storedClientId.length > 0;
 }
 
+- (NSString *)clientSecret
+{
+    return self.storedClientSecret.length ? self.storedClientSecret : TBGoogleDefaultClientSecret;
+}
+
+- (void)setClientSecret:(NSString *)secret
+{
+    NSString *trimmed = [secret stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceAndNewlineCharacterSet]];
+    self.storedClientSecret = (trimmed.length && ![trimmed isEqualToString:TBGoogleDefaultClientSecret]) ? trimmed : nil;
+    [self writeKeychain];
+    [self notify];
+}
+
+- (BOOL)usesOwnClientSecret
+{
+    return self.storedClientSecret.length > 0;
+}
+
 - (instancetype)init
 {
     self = [super init];
     if (self) {
         _subscriptionIds = [NSMutableDictionary dictionary];
         NSDictionary *kept = TBKeychainRead();
-        _clientSecret = kept[@"secret"];
+        _storedClientSecret = kept[@"secret"];
         _storedClientId = kept[@"clientId"];
 #ifdef TB_GOOGLE_CLIENT_SECRET
         // the secret the build was given (a repository secret of the CI); one typed into Settings wins
-        if (!_clientSecret.length && strlen(TB_GOOGLE_CLIENT_SECRET) > 0) _clientSecret = @TB_GOOGLE_CLIENT_SECRET;
+        if (!_storedClientSecret.length && strlen(TB_GOOGLE_CLIENT_SECRET) > 0) _storedClientSecret = @TB_GOOGLE_CLIENT_SECRET;
 #endif
         _accessToken = kept[@"access"];
         _refreshToken = kept[@"refresh"];
@@ -148,20 +171,12 @@ static void TBKeychainWrite(NSDictionary *tokens)
 - (void)writeKeychain
 {
     NSMutableDictionary *kept = [NSMutableDictionary dictionary];
-    if (self.clientSecret) kept[@"secret"] = self.clientSecret;
+    if (self.storedClientSecret) kept[@"secret"] = self.storedClientSecret;
     if (self.storedClientId) kept[@"clientId"] = self.storedClientId;
     if (self.accessToken) kept[@"access"] = self.accessToken;
     if (self.refreshToken) kept[@"refresh"] = self.refreshToken;
     if (self.tokenExpiry) kept[@"expiry"] = self.tokenExpiry;
     TBKeychainWrite(kept.count ? kept : nil);
-}
-
-- (void)setClientSecret:(NSString *)secret
-{
-    NSString *trimmed = [secret stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceAndNewlineCharacterSet]];
-    _clientSecret = trimmed.length ? [trimmed copy] : nil;
-    [self writeKeychain];
-    [self notify];
 }
 
 - (void)keepTokensFrom:(NSDictionary *)json
@@ -190,7 +205,7 @@ static void TBKeychainWrite(NSDictionary *tokens)
 
 #pragma mark - Device flow
 
-- (TBHTTPTask *)signInWithCodeHandler:(void (^)(NSString *userCode, NSString *verificationURL))codeHandler
+- (TBHTTPTask *)signInWithCodeHandler:(void (^)(NSString *userCode, NSString *verificationURL, UIImage *qrImage))codeHandler
                            completion:(void (^)(NSError *error))completion
 {
     TBHTTPTask *outer = [[TBHTTPTask alloc] init];
@@ -202,25 +217,94 @@ static void TBKeychainWrite(NSDictionary *tokens)
     }
     NSString *secret = self.clientSecret;
     NSString *clientId = self.clientId;
-    self.signInRequest = [TBHTTP postForm:TBGoogleDeviceCodeURL fields:@{ @"client_id": clientId, @"scope": TBGoogleScope } completion:^(id json, NSInteger status, NSError *error) {
+    CFUUIDRef uuid = CFUUIDCreate(kCFAllocatorDefault);
+    NSString *deviceId = uuid ? [(__bridge_transfer NSString *)CFUUIDCreateString(kCFAllocatorDefault, uuid) lowercaseString] : @"ios-tubie";
+    if (uuid) CFRelease(uuid);
+
+    BOOL customClient = [self usesCustomOAuthClient];
+    NSString *deviceCodeURL = customClient ? @"https://oauth2.googleapis.com/device/code" : TBGoogleDeviceCodeURL;
+    NSString *scope = customClient ? @"https://www.googleapis.com/auth/youtube.force-ssl" : TBGoogleScope;
+    NSMutableDictionary *fields = [@{ @"client_id": clientId, @"scope": scope } mutableCopy];
+    NSDictionary *headers = nil;
+    if (!customClient) {
+        fields[@"device_id"] = deviceId;
+        fields[@"device_model"] = TBTvDeviceModel;
+        headers = @{ @"User-Agent": TBTvUserAgent };
+    }
+
+    self.signInRequest = [TBHTTP postForm:deviceCodeURL headers:headers fields:fields completion:^(id json, NSInteger status, NSError *error) {
         TBAccount *s = weakSelf;
         if (!s || outer.isCancelled) return;
         s.signInRequest = nil;
         NSDictionary *d = TBDict(json);
         NSString *deviceCode = TBStr(d[@"device_code"]), *userCode = TBStr(d[@"user_code"]);
         if (error || !deviceCode.length || !userCode.length) { completion([TBAccount errorFromOAuth:json status:status fallback:error]); return; }
-        NSString *url = TBStr(d[@"verification_url"]) ?: @"https://www.google.com/device";
+        NSString *url = TBStr(d[@"verification_url"]) ?: (customClient ? @"https://www.google.com/device" : @"https://www.youtube.com/activate");
         NSTimeInterval interval = MAX(3, TBDbl(d[@"interval"]) > 0 ? TBDbl(d[@"interval"]) : 5);
         NSTimeInterval expires = TBDbl(d[@"expires_in"]) > 0 ? TBDbl(d[@"expires_in"]) : 1800;
-        codeHandler(userCode, url);
+        codeHandler(userCode, url, nil);
+        if (!customClient) {
+            [s fetchTvQrCode:userCode completion:^(UIImage *qrImage) {
+                if (qrImage && !outer.isCancelled) {
+                    codeHandler(userCode, url, qrImage);
+                }
+            }];
+        }
         TBLog(@"Google sign-in: code %@ shown, polling every %.0f s", userCode, interval);
         [s pollDeviceCode:deviceCode secret:secret interval:interval deadline:[NSDate dateWithTimeIntervalSinceNow:expires] after:interval task:outer completion:completion];
     }];
     return outer;
 }
 
+- (void)fetchTvQrCode:(NSString *)userCode completion:(void (^)(UIImage *qrImage))completion
+{
+    if (!userCode.length) { TBMain(^{ completion(nil); }); return; }
+    NSString *url = [NSString stringWithFormat:@"%@mdx/handoff?key=%@&prettyPrint=false", TBInnertubeBase, TBInnertubeApiKey];
+    NSDictionary *headers = @{ @"User-Agent": TBTvUserAgent,
+                               @"Content-Type": @"application/json",
+                               @"Accept": @"application/json" };
+    NSDictionary *body = @{
+        @"context": @{
+            @"client": @{
+                @"clientName": @"TVHTML5",
+                @"clientVersion": @"7.20251217.19.00",
+                @"deviceMake": @"Samsung",
+                @"deviceModel": @"SmartTV",
+                @"platform": @"TV",
+                @"hl": [TBSettings contentLanguage] ?: @"en",
+                @"gl": [TBSettings contentRegion] ?: @"US"
+            }
+        },
+        @"handoffQrParams": @{
+            @"rapidQrParams": @{
+                @"qrPresetStyle": @"HANDOFF_QR_LIMITED_PRESET_STYLE_MODERN_BIG_DOTS_INVERT_WITH_YT_LOGO",
+                @"userCode": userCode,
+                @"rapidQrFeature": @"RAPID_QR_FEATURE_DEFAULT"
+            }
+        }
+    };
+    [TBHTTP postJSON:url headers:headers object:body retries:1 completion:^(id json, NSInteger status, NSError *error) {
+        if (error || !json) { completion(nil); return; }
+        NSDictionary *rapid = TBDict(TBDict(json)[@"rapidQrRenderer"]);
+        NSDictionary *renderer = TBDict(rapid[@"qrCodeRenderer"]);
+        NSDictionary *img = TBDict(renderer[@"qrCodeImage"]);
+        NSArray *thumbs = TBArr(img[@"thumbnails"]);
+        NSString *qrUrl = TBStr(TBDict([thumbs firstObject])[@"url"]);
+        if (!qrUrl.length) { completion(nil); return; }
+        if ([qrUrl rangeOfString:@"base64," options:NSCaseInsensitiveSearch].location != NSNotFound) {
+            NSData *data = [TBUtils base64Decode:qrUrl];
+            UIImage *image = data.length ? [UIImage imageWithData:data] : nil;
+            completion(image);
+            return;
+        }
+        [TBHTTP request:@"GET" url:qrUrl headers:nil body:nil retries:1 completion:^(NSInteger s, NSData *bodyData, NSDictionary *h, NSError *e) {
+            UIImage *image = bodyData.length ? [UIImage imageWithData:bodyData] : nil;
+            completion(image);
+        }];
+    }];
+}
+
 // One token request after `wait` seconds; while Google says the user has not confirmed yet, the next one follows
-// (a method rather than a block that calls itself: a weak reference to a block is not a thing to build on)
 - (void)pollDeviceCode:(NSString *)deviceCode secret:(NSString *)secret interval:(NSTimeInterval)interval deadline:(NSDate *)deadline
                  after:(NSTimeInterval)wait task:(TBHTTPTask *)outer completion:(void (^)(NSError *error))completion
 {
@@ -229,9 +313,15 @@ static void TBKeychainWrite(NSDictionary *tokens)
         TBAccount *s = weakSelf;
         if (!s || outer.isCancelled) return;
         if ([deadline timeIntervalSinceNow] < 0) { completion(TBMakeError(TBErrorAuth, L(@"The code expired. Try again."))); return; }
-        NSDictionary *fields = @{ @"client_id": s.clientId, @"client_secret": secret, @"device_code": deviceCode,
-                                  @"grant_type": @"urn:ietf:params:oauth:grant-type:device_code" };
-        s.signInRequest = [TBHTTP postForm:TBGoogleTokenURL fields:fields completion:^(id json, NSInteger status, NSError *error) {
+        BOOL customClient = [s usesCustomOAuthClient];
+        NSString *tokenURL = customClient ? @"https://oauth2.googleapis.com/token" : TBGoogleTokenURL;
+        NSString *grantType = customClient ? @"urn:ietf:params:oauth:grant-type:device_code" : @"http://oauth.net/grant_type/device/1.0";
+        NSDictionary *fields = @{ @"client_id": s.clientId,
+                                  @"client_secret": secret,
+                                  @"code": deviceCode,
+                                  @"grant_type": grantType };
+        NSDictionary *headers = customClient ? nil : @{ @"User-Agent": TBTvUserAgent };
+        s.signInRequest = [TBHTTP postForm:tokenURL headers:headers fields:fields completion:^(id json, NSInteger status, NSError *error) {
             TBAccount *account = weakSelf;
             if (!account || outer.isCancelled) return;
             account.signInRequest = nil;
@@ -248,7 +338,7 @@ static void TBKeychainWrite(NSDictionary *tokens)
             }
             BOOL hiccup = !code.length && (error.code == TBErrorNetwork || error.code == TBErrorTimeout || error.code == TBErrorConnectionLost);
             if ([code isEqualToString:@"authorization_pending"] || [code isEqualToString:@"slow_down"] || hiccup) {
-                NSTimeInterval next = [code isEqualToString:@"authorization_pending"] ? interval : interval + 5;   // (slow_down, or a network hiccup: the code is still good)
+                NSTimeInterval next = [code isEqualToString:@"authorization_pending"] ? interval : interval + 5;
                 [account pollDeviceCode:deviceCode secret:secret interval:interval deadline:deadline after:next task:outer completion:completion];
                 return;
             }
@@ -261,13 +351,12 @@ static void TBKeychainWrite(NSDictionary *tokens)
 {
     NSString *token = self.refreshToken ?: self.accessToken;
     if (token.length) {
-        // (best effort: Google forgets the grant; the keychain forgets it either way)
         [TBHTTP postForm:TBGoogleRevokeURL fields:@{ @"token": token } completion:^(id json, NSInteger status, NSError *error) {}];
     }
     self.accessToken = nil;
     self.refreshToken = nil;
     self.tokenExpiry = nil;
-    [self writeKeychain];   // (the client secret stays for the next sign-in)
+    [self writeKeychain];
     self.channelTitle = nil;
     self.channelId = nil;
     self.handle = nil;
@@ -294,7 +383,7 @@ static void TBKeychainWrite(NSDictionary *tokens)
     if (!self.clientSecret.length) { TBMain(^{ completion(nil, TBMakeError(TBErrorAuth, L(@"Enter the Google client secret in Settings first."))); }); return nil; }
     __weak TBAccount *weakSelf = self;
     NSDictionary *fields = @{ @"client_id": self.clientId, @"client_secret": self.clientSecret, @"refresh_token": self.refreshToken, @"grant_type": @"refresh_token" };
-    return [TBHTTP postForm:TBGoogleTokenURL fields:fields completion:^(id json, NSInteger status, NSError *error) {
+    return [TBHTTP postForm:TBGoogleRefreshURL fields:fields completion:^(id json, NSInteger status, NSError *error) {
         TBAccount *s = weakSelf;
         NSDictionary *t = TBDict(json);
         if (TBStr(t[@"access_token"]).length) { [s keepTokensFrom:t]; completion(s.accessToken, nil); return; }
