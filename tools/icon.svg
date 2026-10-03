@@ -1,0 +1,64 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Tubie app icon (master, full-bleed square: iOS rounds the corners). Rendered by tools/gen_assets.py with
+     rsvg-convert. A glass television screen with a play sign on a red aqua tile - the shape of the YouTube idea in the
+     language of 2012 icons. The icon carries its own gloss (UIPrerenderedIcon is on). -->
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 160 160">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#ffd9d6"/>
+      <stop offset="0.46" stop-color="#f05a52"/>
+      <stop offset="0.5" stop-color="#c61e1e"/>
+      <stop offset="1" stop-color="#f26a62"/>
+    </linearGradient>
+    <linearGradient id="gloss" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#ffffff" stop-opacity="0.5"/>
+      <stop offset="1" stop-color="#ffffff" stop-opacity="0.12"/>
+    </linearGradient>
+    <!-- the screen: white glass, warm at the bottom -->
+    <linearGradient id="screen" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#ffffff"/>
+      <stop offset="0.55" stop-color="#f7f1f1"/>
+      <stop offset="1" stop-color="#e2cfcf"/>
+    </linearGradient>
+    <linearGradient id="screenGloss" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#ffffff" stop-opacity="0.95"/>
+      <stop offset="1" stop-color="#ffffff" stop-opacity="0.1"/>
+    </linearGradient>
+    <!-- the body behind the glass: deep red, lit from above -->
+    <linearGradient id="body" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#a81c1c"/>
+      <stop offset="1" stop-color="#5e0a0a"/>
+    </linearGradient>
+    <!-- the play sign: red glass -->
+    <linearGradient id="play" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#ff6b63"/>
+      <stop offset="1" stop-color="#b81414"/>
+    </linearGradient>
+    <filter id="soft" x="-20%" y="-20%" width="140%" height="150%">
+      <feGaussianBlur stdDeviation="3"/>
+    </filter>
+  </defs>
+
+  <rect width="160" height="160" fill="url(#bg)"/>
+
+  <!-- the screen, drawn three times: a soft shadow, the dark body set off to the left and down, the glass face -->
+  <g transform="translate(80,78) scale(1.08) translate(-80,-78)">
+    <rect x="36" y="42" width="88" height="66" rx="10" transform="translate(0,6)" filter="url(#soft)" fill="#3a0404" fill-opacity="0.45"/>
+    <rect x="36" y="42" width="88" height="66" rx="10" transform="translate(-6,6)" fill="url(#body)"/>
+    <rect x="36" y="42" width="88" height="66" rx="10" fill="url(#screen)" stroke="#8a1414" stroke-opacity="0.35" stroke-width="1"/>
+    <!-- the two feet of the set -->
+    <rect x="52" y="108" width="8" height="8" rx="2" transform="translate(-6,6)" fill="#5e0a0a"/>
+    <rect x="100" y="108" width="8" height="8" rx="2" transform="translate(-6,6)" fill="#5e0a0a"/>
+    <rect x="52" y="108" width="8" height="8" rx="2" fill="#b81e1e"/>
+    <rect x="100" y="108" width="8" height="8" rx="2" fill="#b81e1e"/>
+    <!-- the play sign -->
+    <path d="M68,57 L68,93 L100,75 Z" transform="translate(1,2)" fill="#000000" fill-opacity="0.18"/>
+    <path d="M68,57 L68,93 L100,75 Z" fill="url(#play)"/>
+    <path d="M68.5,57.5 L68.5,75 L99,75 Z" fill="#ffffff" fill-opacity="0.35"/>
+    <!-- the glass highlight on the screen -->
+    <path d="M36.5,52 Q36.5,42.5 46,42.5 L114,42.5 Q123.5,42.5 123.5,52 L123.5,66 Q80,72 36.5,66 Z" fill="url(#screenGloss)"/>
+  </g>
+
+  <!-- gloss over the whole tile -->
+  <path d="M0,0 L160,0 L160,72 Q80,78 0,72 Z" fill="url(#gloss)"/>
+</svg>
