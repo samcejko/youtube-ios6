@@ -92,10 +92,16 @@ static NSTimeInterval TBSecondsFromLengthText(NSString *text)
 
 #pragma mark - Item parsers
 
+// YouTube video ids are 11 characters; anything else is some other kind of item
+static BOOL TBLooksLikeVideoId(NSString *s)
+{
+    return s.length == 11;
+}
+
 static TBVideo *TBVideoFromRenderer(NSDictionary *r)
 {
     NSString *videoId = TBStr(r[@"videoId"]);
-    if (!videoId.length) return nil;
+    if (!TBLooksLikeVideoId(videoId)) return nil;
     TBVideo *v = [TBVideo videoWithId:videoId];
     v.title = TBText(r[@"title"]) ?: TBText(r[@"headline"]);
     v.thumbnailURL = TBThumbnailURL(r[@"thumbnail"]);
@@ -144,7 +150,7 @@ static TBVideo *TBVideoFromRenderer(NSDictionary *r)
 static TBVideo *TBVideoFromLockup(NSDictionary *lockup)
 {
     TBVideo *v = [TBVideo videoWithId:TBStr(lockup[@"contentId"]) ?: TBVideoIdIn(lockup[@"rendererContext"])];
-    if (!v.videoId.length) return nil;
+    if (!TBLooksLikeVideoId(v.videoId)) return nil;
     NSDictionary *meta = TBDict(TBDict(lockup[@"metadata"])[@"lockupMetadataViewModel"]);
     v.title = TBText(meta[@"title"]);
     NSDictionary *image = TBDict(lockup[@"contentImage"]);
@@ -237,8 +243,8 @@ static TBChannel *TBChannelFromLockup(NSDictionary *lockup)
 
 static TBVideo *TBShortFromLockup(NSDictionary *lockup)
 {
-    TBVideo *v = [TBVideo videoWithId:TBVideoIdIn(lockup[@"onTap"]) ?: TBStr(lockup[@"entityId"])];
-    if (!v.videoId.length) return nil;
+    TBVideo *v = [TBVideo videoWithId:TBVideoIdIn(lockup[@"onTap"])];
+    if (!TBLooksLikeVideoId(v.videoId)) return nil;
     NSDictionary *overlay = TBDict(lockup[@"overlayMetadata"]);
     v.title = TBText(overlay[@"primaryText"]) ?: TBStr(lockup[@"accessibilityText"]);
     v.viewsText = TBText(overlay[@"secondaryText"]);

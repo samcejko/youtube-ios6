@@ -79,26 +79,30 @@
     TBLibrary *library = [TBLibrary shared];
     TBGridViewController *grid = [[TBGridViewController alloc] initWithStyle:TBGridStyleVideos loader:nil];
     __weak TBGridViewController *weakGrid = grid;
+    // (each case in braces: a block literal is a declaration the compiler will not let a later case jump over)
     switch (indexPath.row) {
-        case 0:
+        case 0: {
             grid.title = L(@"History");
             grid.emptyText = L(@"Nothing watched yet.");
             [grid replaceItems:[library history]];
             grid.onRemoveItem = ^(id item) { [library removeFromHistory:[(TBVideo *)item videoId]]; [weakGrid replaceItems:[library history]]; };
             grid.navigationItem.rightBarButtonItem = [[UIBarButtonItem alloc] initWithTitle:L(@"Clear") style:UIBarButtonItemStyleBordered target:self action:@selector(clearHistoryTapped)];
             break;
-        case 1:
+        }
+        case 1: {
             grid.title = L(@"Watch later");
             grid.emptyText = L(@"Nothing saved for later. The button is on every video's page.");
             [grid replaceItems:[library watchLater]];
             grid.onRemoveItem = ^(id item) { [library removeFromWatchLater:[(TBVideo *)item videoId]]; [weakGrid replaceItems:[library watchLater]]; };
             break;
-        default:
+        }
+        default: {
             grid.title = L(@"Subscriptions");
             grid.emptyText = L(@"No subscriptions yet.");
             [grid replaceItems:[library subscriptions]];
             grid.onRemoveItem = ^(id item) { [library unsubscribe:[(TBChannel *)item channelId]]; [weakGrid replaceItems:[library subscriptions]]; };
             break;
+        }
     }
     [self.navigationController pushViewController:grid animated:YES];
 }

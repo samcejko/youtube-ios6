@@ -17,6 +17,7 @@ static const NSTimeInterval TBFeedCacheSeconds = 300;
 @property (nonatomic, copy) NSString *channelId;
 @property (nonatomic, copy) NSString *channelName;
 @property (nonatomic) BOOL inEntry, inAuthor;
++ (NSDate *)dateWithOffset:(NSString *)s;
 @end
 
 @implementation TBFeedParser
