@@ -334,7 +334,13 @@ static TBVideo *TBVideoFromTile(NSDictionary *tile)
             NSDictionary *lineItem0 = TBDict(item0[@"lineItemRenderer"]);
             v.channelName = TBText(lineItem0[@"text"]);
             v.channelId = TBBrowseIdIn(lineItem0);
+            if (!v.channelId.length) v.channelId = TBBrowseIdIn(line0);
+            if (!v.channelId.length) v.channelId = TBBrowseIdIn(metadata);
+            if (!v.channelId.length) v.channelId = TBBrowseIdIn(tile);
         }
+    }
+    if (!v.channelAvatarURL.length) {
+        v.channelAvatarURL = TBThumbnailURL(TBFindFirst(tile, @"channelThumbnail") ?: TBFindFirst(tile, @"avatar"));
     }
     if (lines.count > 1) {
         NSDictionary *line1 = TBDict(lines[1]);
@@ -941,11 +947,12 @@ static void TBWalk(id node, NSMutableArray *items, NSMutableArray *continuations
                             }
                         } else if ([it isKindOfClass:[TBVideo class]]) {
                             TBVideo *v = (TBVideo *)it;
-                            if (v.channelId.length && [v.channelId hasPrefix:@"UC"] && ![seen containsObject:v.channelId]) {
-                                [seen addObject:v.channelId];
+                            NSString *cid = v.channelId.length ? v.channelId : v.channelName;
+                            if (cid.length && ![seen containsObject:cid]) {
+                                [seen addObject:cid];
                                 TBChannel *c = [[TBChannel alloc] init];
-                                c.channelId = v.channelId;
-                                c.title = v.channelName;
+                                c.channelId = v.channelId.length ? v.channelId : [NSString stringWithFormat:@"channel:%@", v.channelName];
+                                c.title = v.channelName.length ? v.channelName : @"Channel";
                                 c.avatarURL = v.channelAvatarURL;
                                 [channels addObject:c];
                             }
