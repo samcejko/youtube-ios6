@@ -102,17 +102,12 @@
 - (void)channelsTapped
 {
     TBGridViewController *grid = [[TBGridViewController alloc] initWithStyle:TBGridStyleVideos loader:^TBHTTPTask *(NSString *continuation, TBItemsCompletion completion) {
-        NSArray *cached = [[TBLibrary shared] subscriptions];
-        if (cached.count > 0 && !continuation) {
-            if (completion) completion(cached, nil, nil);
-            return nil;
-        }
         if ([[TBAccount shared] isSignedIn]) {
             return [[TBAccount shared] syncSubscriptions:^(NSArray *channels, NSError *error) {
-                if (completion) completion(channels ?: cached, nil, error);
+                if (completion) completion(channels ?: [[TBLibrary shared] subscriptions], nil, error);
             }];
         }
-        if (completion) completion(cached, nil, nil);
+        if (completion) completion([[TBLibrary shared] subscriptions], nil, nil);
         return nil;
     }];
     grid.title = L(@"Channels");

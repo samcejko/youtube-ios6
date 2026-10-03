@@ -33,7 +33,7 @@
 - (void)viewWillAppear:(BOOL)animated
 {
     [super viewWillAppear:animated];
-    if ([[TBAccount shared] isSignedIn] && ![[TBLibrary shared] subscriptions].count) {
+    if ([[TBAccount shared] isSignedIn]) {
         [[TBAccount shared] syncSubscriptions:nil];
     }
     [self refresh];
@@ -125,13 +125,8 @@
     }
     if (indexPath.row == 2 && [[TBAccount shared] isSignedIn]) {
         TBGridViewController *grid = [[TBGridViewController alloc] initWithStyle:TBGridStyleVideos loader:^TBHTTPTask *(NSString *continuation, TBItemsCompletion completion) {
-            NSArray *cached = [[TBLibrary shared] subscriptions];
-            if (cached.count > 0 && !continuation) {
-                if (completion) completion(cached, nil, nil);
-                return nil;
-            }
             return [[TBAccount shared] syncSubscriptions:^(NSArray *channels, NSError *error) {
-                if (completion) completion(channels ?: cached, nil, error);
+                if (completion) completion(channels ?: [[TBLibrary shared] subscriptions], nil, error);
             }];
         }];
         grid.title = L(@"Subscriptions");
