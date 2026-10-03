@@ -7,7 +7,7 @@
   their own OAuth client (ID + secret from a 5-minute Google Cloud project), nothing shared is baked in. See the
   README; a build may still carry the author's client as a default for its own test users.
 - Post comments and replies when signed in (needs the broader `youtube.force-ssl` permission, so sign in again).
-- Sharing a video now offers an "Open in…" chooser: copy the link, or open it in Safari or Surfari.
+- Sharing a video now offers an "Open in..." chooser: copy the link, or open it in Safari or Surfari.
 
 ## 0.2.0 (2026-10-03)
 
