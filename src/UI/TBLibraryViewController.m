@@ -2,6 +2,7 @@
 #import "TBGridViewController.h"
 #import "TBSettingsViewController.h"
 #import "TBLibrary.h"
+#import "TBInnertube.h"
 #import "TBAccount.h"
 #import "TBTheme.h"
 #import "TBCommon.h"
@@ -65,7 +66,7 @@
         return cell;
     }
     switch (indexPath.row) {
-        case 0: cell.textLabel.text = L(@"History"); cell.detailTextLabel.text = [NSString stringWithFormat:@"%lu", (unsigned long)[library history].count]; break;
+        case 0: cell.textLabel.text = L(@"History"); cell.detailTextLabel.text = [[TBAccount shared] isSignedIn] ? @"" : [NSString stringWithFormat:@"%lu", (unsigned long)[library history].count]; break;
         case 1: cell.textLabel.text = L(@"Watch later"); cell.detailTextLabel.text = [NSString stringWithFormat:@"%lu", (unsigned long)[library watchLater].count]; break;
         case 2: cell.textLabel.text = L(@"Subscriptions"); cell.detailTextLabel.text = [NSString stringWithFormat:@"%lu", (unsigned long)[library subscriptions].count]; break;
         case 3: cell.textLabel.text = L(@"Liked videos"); cell.detailTextLabel.text = @""; break;
@@ -82,6 +83,24 @@
         return;
     }
     TBLibrary *library = [TBLibrary shared];
+    if (indexPath.row == 0 && [[TBAccount shared] isSignedIn]) {
+        TBGridViewController *grid = [[TBGridViewController alloc] initWithStyle:TBGridStyleVideos loader:^TBHTTPTask *(NSString *continuation, TBItemsCompletion completion) {
+            return [TBInnertube authenticatedBrowse:@"FEhistory" params:nil continuation:continuation completion:^(NSDictionary *resp, NSArray *items, NSString *nextContinuation, NSError *error) {
+                if (error && !continuation) {
+                    NSArray *local = [[TBLibrary shared] history];
+                    if (local.count > 0) {
+                        if (completion) completion(local, nil, nil);
+                        return;
+                    }
+                }
+                if (completion) completion(items, nextContinuation, error);
+            }];
+        }];
+        grid.title = L(@"History");
+        grid.emptyText = L(@"Nothing watched yet.");
+        [self.navigationController pushViewController:grid animated:YES];
+        return;
+    }
     if (indexPath.row >= 3) {
         // the account's lists, a page at a time
         BOOL liked = indexPath.row == 3;
