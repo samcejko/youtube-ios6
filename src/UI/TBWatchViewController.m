@@ -402,7 +402,8 @@ typedef NS_ENUM(NSInteger, TBWatchSection) {
         if (!s || ![s.video.videoId isEqualToString:videoId]) return;
         s.sponsorTask = nil;
         s.sponsorSegments = segments;
-        if (segments.count) TBLog(@"SponsorBlock: %lu segments", (unsigned long)segments.count);
+        if (error) TBLog(@"SponsorBlock: %@", error.localizedDescription);
+        else TBLog(@"SponsorBlock: %lu segments for %@", (unsigned long)segments.count, videoId);
     }];
 }
 

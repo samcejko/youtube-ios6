@@ -29,7 +29,7 @@ NSString * const TBQualityAuto = @"auto";
         @"autoplayNext": @NO,
         @"progressiveOnly": @NO,
         @"sponsorBlock": @YES,
-        @"sponsorBlockCategories": @[ @"sponsor", @"selfpromo", @"interaction" ],
+        @"sponsorBlockCategories": @[ @"sponsor", @"selfpromo", @"interaction", @"music_offtopic" ],   // (what the SponsorBlock extension skips by itself)
         @"captionsEnabled": @NO,
         @"captionsLanguage": @"",
         @"contentLanguage": [self deviceLanguage],

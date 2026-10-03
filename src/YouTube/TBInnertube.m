@@ -350,7 +350,8 @@ static void TBWalk(id node, NSMutableArray *items, NSMutableArray *continuations
                 TBVideo *v = TBVideoFromRenderer(r);
                 v.isShort = YES;
                 item = v;
-            } else if ([key hasSuffix:@"VideoRenderer"] || [key isEqualToString:@"videoWithContextRenderer"]) {
+            } else if ([key isEqualToString:@"videoRenderer"] || [key hasSuffix:@"VideoRenderer"] || [key isEqualToString:@"videoWithContextRenderer"]) {
+                // (plain "videoRenderer" - the search results - has a small v, which the suffix test alone missed)
                 item = TBVideoFromRenderer(r);
             } else if ([key isEqualToString:@"channelRenderer"] || [key isEqualToString:@"gridChannelRenderer"]) {
                 item = TBChannelFromRenderer(r);
@@ -467,7 +468,16 @@ static void TBWalk(id node, NSMutableArray *items, NSMutableArray *continuations
         if (error) { completion(nil, nil, error); return; }
         NSString *next = nil;
         NSArray *items = [self itemsInNode:response continuation:&next];
-        completion(items, next, nil);
+        // YouTube pushes a shelf of two dozen shorts into the first page; here the videos, channels and playlists
+        // come first and a handful of shorts follow (the Shorts tab is the place for them)
+        NSMutableArray *regular = [NSMutableArray array], *shorts = [NSMutableArray array];
+        for (id item in items) {
+            if ([item isKindOfClass:[TBVideo class]] && [(TBVideo *)item isShort]) { if (shorts.count < 6) [shorts addObject:item]; }
+            else [regular addObject:item];
+        }
+        if (regular.count) [regular addObjectsFromArray:shorts]; else regular = shorts;
+        TBLog(@"Search '%@': %lu items (%lu shorts)%@", query ?: @"", (unsigned long)regular.count, (unsigned long)shorts.count, next.length ? @", more" : @"");
+        completion(regular, next, nil);
     }];
 }
 

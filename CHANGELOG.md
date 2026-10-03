@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.1.1 (2026-10-03)
+
+- Search showed only shorts, channels and playlists: ordinary videos were dropped by the parser. Fixed; shorts now
+  follow the videos in the results (at most six) and carry a "Shorts" badge.
+- SponsorBlock skips "non-music" parts of music videos by default as well (the extension's own default); the log
+  tells how many segments a video has.
+
 ## 0.1.0 (2026-10-03)
 
 First version.

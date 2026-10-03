@@ -157,7 +157,8 @@ static const CGFloat kRowThumbWidth = 136;
     NSString *thumb = card ? [video thumbnailURLForWidth:[TBUtils screenScale] > 1.5 ? 640 : 480] : [video thumbnailURLForWidth:320];
     if (!video.videoId.length) thumb = video.thumbnailURL;
     [self.thumbnail setImageURL:thumb placeholder:[t thumbnailPlaceholder]];
-    [self.lengthPill setText:video.isLive ? nil : video.lengthText image:[t darkPillImage]];
+    // (a short among ordinary videos says so where the length would be)
+    [self.lengthPill setText:video.isLive ? nil : (video.lengthText.length ? video.lengthText : (video.isShort ? L(@"Shorts") : nil)) image:[t darkPillImage]];
     [self.livePill setText:video.isLive ? L(@"LIVE") : (video.isUpcoming ? L(@"UPCOMING") : nil) image:video.isLive ? [t pillImageWithColor:[t liveColor]] : [t darkPillImage]];
     self.progress = (video.position > 5 && video.lengthSeconds > 0) ? MIN(1.0, video.position / video.lengthSeconds) : 0;
     self.progressTrack.hidden = self.progress <= 0;
