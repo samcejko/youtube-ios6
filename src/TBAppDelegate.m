@@ -156,6 +156,12 @@ static BOOL TBPressView(UIView *v, NSString *text)
     }
     BOOL debug = [[NSFileManager defaultManager] fileExistsAtPath:[[TBUtils documentsPath] stringByAppendingPathComponent:@"debug"]];
     if (!debug) return YES;
+    if ([target isEqualToString:@"proxylog"]) {
+        // every request the player makes to the media proxy goes to the log (proxylog?on=0 stops it)
+        [TBMediaProxy shared].logRequests = ![params[@"on"] isEqualToString:@"0"];
+        TBLog(@"Proxy request log %@", [TBMediaProxy shared].logRequests ? @"on" : @"off");
+        return YES;
+    }
     if ([target isEqualToString:@"stats"]) {
         struct task_basic_info info;
         mach_msg_type_number_t count = TASK_BASIC_INFO_COUNT;

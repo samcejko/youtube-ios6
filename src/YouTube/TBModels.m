@@ -42,7 +42,7 @@ NSString *TBThumbnailURL(id node)
     NSArray *list = TBArr(d[@"thumbnails"]) ?: TBArr(d[@"sources"]);
     if (!list) {
         // one level down: {"thumbnail": {"thumbnails": [...]}}, {"image": {"sources": [...]}}
-        for (NSString *key in @[ @"thumbnail", @"image", @"primaryThumbnail", @"thumbnailViewModel", @"avatar", @"avatarViewModel", @"decoratedAvatarViewModel" ]) {
+        for (NSString *key in @[ @"thumbnail", @"image", @"primaryThumbnail", @"thumbnailViewModel", @"collectionThumbnailViewModel", @"avatar", @"avatarViewModel", @"decoratedAvatarViewModel" ]) {
             NSString *found = TBThumbnailURL(d[key]);
             if (found) return found;
         }

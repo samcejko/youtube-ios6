@@ -35,5 +35,7 @@
 // What was served since the start, by content type ("video/MP2T: 12 (4.1 MB), audio/aac: 12 (0.6 MB)") - for the
 // debug "stats" command: it tells whether the player fetches the sound rendition at all
 - (NSString *)statsDescription;
+// Every request of the player goes to the log (debug mode)
+@property (atomic) BOOL logRequests;
 
 @end

@@ -382,6 +382,7 @@ typedef NS_ENUM(NSInteger, TBWatchSection) {
             s.video.channelAvatarURL = info.channel.avatarURL ?: s.video.channelAvatarURL;
             s.playerView.subtitle = info.channel.title;
         }
+        [[TBLibrary shared] updateDetailsOf:s.video];
         [s.tableView reloadData];
         [s updateNowPlaying];
     }];
@@ -430,6 +431,7 @@ typedef NS_ENUM(NSInteger, TBWatchSection) {
         if (info.lengthSeconds > 0) s.video.lengthSeconds = info.lengthSeconds;
         s.video.isLive = source.isLive;
         s.playerView.isLive = source.isLive;
+        [[TBLibrary shared] updateDetailsOf:s.video];
         [s.tableView reloadData];
         if (!source.isLive && s.pendingSeek < 0) {
             NSTimeInterval resume = [TBSettings resumePositionForVideo:videoId];

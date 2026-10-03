@@ -396,12 +396,17 @@ static BOOL TBProxyPortAnswers(uint16_t port)
 - (void)serveTarget:(NSString *)target method:(NSString *)method headers:(NSDictionary *)headers to:(int)fd
 {
     NSArray *parts = [target componentsSeparatedByString:@"/"];
-    if (parts.count < 5 || ![parts[1] isEqualToString:self.secret]) { TBSendStatus(fd, 404); return; }
+    if (parts.count < 5 || ![parts[1] isEqualToString:self.secret]) { [self countServed:@"HTTP 404" bytes:0]; TBSendStatus(fd, 404); return; }
     NSString *kind = parts[2];
     NSString *rest = [[parts subarrayWithRange:NSMakeRange(4, parts.count - 4)] componentsJoinedByString:@"/"];
     TBProxyEntry *entry;
     @synchronized (self) { entry = self.entries[parts[3]]; }
-    if (!entry) { TBSendStatus(fd, 404); return; }
+    if (self.logRequests) {
+        NSString *range = headers[@"range"];
+        TBLog(@"Proxy %@ %@/%@/%@%@ -> %@", method, kind, parts[3], rest.length > 40 ? [rest substringToIndex:40] : rest,
+              range.length ? [NSString stringWithFormat:@" [%@]", range] : @"", entry ? (entry.url.host ?: @"text") : @"unknown entry");
+    }
+    if (!entry) { [self countServed:@"HTTP 404" bytes:0]; TBSendStatus(fd, 404); return; }
 
     if (entry.kind == TBProxyEntryText && [kind isEqualToString:@"t"]) {
         [self sendPlaylist:entry.text method:method to:fd];
@@ -519,17 +524,23 @@ static BOOL TBProxyPortAnswers(uint16_t port)
         }
         if (redirect.host.length) { url = redirect; continue; }
         if (playlist) {
-            if (failure) { TBSendStatus(fd, 502); return; }
+            if (failure) { TBLog(@"Media proxy: playlist %@ failed: %@", url.host, failure.localizedDescription); [self countServed:@"HTTP 502" bytes:0]; TBSendStatus(fd, 502); return; }
             NSString *text = [[NSString alloc] initWithData:collected encoding:NSUTF8StringEncoding] ?: [[NSString alloc] initWithData:collected encoding:NSISOLatin1StringEncoding] ?: @"";
-            [self sendPlaylist:[self rewritePlaylist:text baseURL:url viaDirectory:viaDirectory] method:method to:fd];
+            NSString *rewritten = [self rewritePlaylist:text baseURL:url viaDirectory:viaDirectory];
+            if (self.logRequests) TBLog(@"Proxy playlist from %@: %lu bytes, status %ld, %lu lines", url.host, (unsigned long)collected.length, (long)playlistStatus, (unsigned long)[rewritten componentsSeparatedByString:@"\n"].count);
+            [self sendPlaylist:rewritten method:method to:fd];
             return;
         }
         if (!headSent) {
             if (failure) TBLog(@"Media proxy: %@ failed: %@", url.host, failure.localizedDescription);
+            [self countServed:@"HTTP 502" bytes:0];
             TBSendStatus(fd, 502);
+        } else if (self.logRequests && failure) {
+            TBLog(@"Proxy: %@ broke off: %@", url.host, failure.localizedDescription);
         }
         return;
     }
+    [self countServed:@"HTTP 502" bytes:0];
     TBSendStatus(fd, 502);
 }
 

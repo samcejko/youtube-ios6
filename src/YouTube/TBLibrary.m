@@ -263,6 +263,26 @@ static const NSTimeInterval TBFeedCacheSeconds = 300;
     [self notify];
 }
 
+- (void)updateDetailsOf:(TBVideo *)video
+{
+    if (!video.videoId.length) return;
+    BOOL changed = NO;
+    for (NSMutableArray *list in @[ self.historyList, self.laterList ]) {
+        for (TBVideo *v in list) {
+            if (![v.videoId isEqualToString:video.videoId]) continue;
+            if (video.title.length && ![video.title isEqualToString:v.title]) { v.title = video.title; changed = YES; }
+            if (video.channelName.length && ![video.channelName isEqualToString:v.channelName]) { v.channelName = video.channelName; changed = YES; }
+            if (video.channelId.length && !v.channelId.length) { v.channelId = video.channelId; changed = YES; }
+            if (video.lengthSeconds > 0 && v.lengthSeconds <= 0) { v.lengthSeconds = video.lengthSeconds; v.lengthText = [TBUtils formatDuration:video.lengthSeconds]; changed = YES; }
+            if (video.isLive != v.isLive) { v.isLive = video.isLive; changed = YES; }
+        }
+    }
+    if (!changed) return;
+    [self saveList:self.historyList as:@"history"];
+    [self saveList:self.laterList as:@"watchlater"];
+    [self notify];
+}
+
 - (void)updatePosition:(NSTimeInterval)position forVideo:(NSString *)videoId
 {
     for (TBVideo *v in self.historyList) {

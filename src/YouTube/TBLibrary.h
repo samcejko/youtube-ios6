@@ -22,6 +22,8 @@
 // History (TBVideo with watchedAt and position, newest first; 500 kept)
 - (NSArray *)history;
 - (void)addToHistory:(TBVideo *)video;
+// A video opened by its id alone gets its title and channel later: the entries in history and watch later follow
+- (void)updateDetailsOf:(TBVideo *)video;
 - (void)updatePosition:(NSTimeInterval)position forVideo:(NSString *)videoId;
 - (void)removeFromHistory:(NSString *)videoId;
 - (void)clearHistory;
