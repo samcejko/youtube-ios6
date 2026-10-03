@@ -1,6 +1,7 @@
 #import "TBSubscriptionsViewController.h"
 #import "TBNavigator.h"
 #import "TBLibrary.h"
+#import "TBInnertube.h"
 #import "TBAccount.h"
 #import "TBTheme.h"
 #import "TBUtils.h"
@@ -21,6 +22,19 @@
         __weak TBSubscriptionsViewController *weakSelf = self;
         self.loader = ^TBHTTPTask *(NSString *continuation, TBItemsCompletion completion) {
             TBSubscriptionsViewController *s = weakSelf;
+            if ([[TBAccount shared] isSignedIn] && ![[TBAccount shared] usesCustomOAuthClient]) {
+                return [TBInnertube authenticatedBrowse:@"FEsubscriptions" params:nil continuation:continuation completion:^(NSDictionary *resp, NSArray *items, NSString *nextContinuation, NSError *error) {
+                    if (error && !continuation) {
+                        BOOL force = s.forceNext;
+                        s.forceNext = NO;
+                        [[TBLibrary shared] feedForce:force completion:^(NSArray *videos, NSError *feedError) {
+                            completion(videos, nil, feedError);
+                        }];
+                        return;
+                    }
+                    completion(items, nextContinuation, error);
+                }];
+            }
             if (continuation.length) { TBMain(^{ completion(@[], nil, nil); }); return nil; }
             BOOL force = s.forceNext;
             s.forceNext = NO;
@@ -33,11 +47,22 @@
     return self;
 }
 
+- (void)dealloc
+{
+    [[NSNotificationCenter defaultCenter] removeObserver:self];
+}
+
 - (void)viewDidLoad
 {
     [super viewDidLoad];
     self.navigationItem.rightBarButtonItem = [[UIBarButtonItem alloc] initWithTitle:L(@"Channels") style:UIBarButtonItemStyleBordered target:self action:@selector(channelsTapped)];
     [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(libraryChanged) name:TBLibraryDidChangeNotification object:nil];
+    [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(accountChanged) name:TBAccountDidChangeNotification object:nil];
+}
+
+- (void)accountChanged
+{
+    if (self.isViewLoaded && self.view.window) [self reload];
 }
 
 - (void)updateEmptyText
@@ -51,8 +76,17 @@
     self.forceNext = YES;
     [self updateEmptyText];
     if ([[TBAccount shared] isSignedIn]) {
-        // a pull brings the account's subscriptions up to date first, the feed follows
         __weak TBSubscriptionsViewController *weakSelf = self;
+        if (![[TBAccount shared] usesCustomOAuthClient]) {
+            [TBInnertube authenticatedGuide:^(NSDictionary *response, NSArray *channels, NSError *error) {
+                if (channels.count) {
+                    [[TBLibrary shared] replaceSubscriptions:channels];
+                }
+                [weakSelf reloadFeed];
+            }];
+            return;
+        }
+        // a pull brings the account's subscriptions up to date first, the feed follows
         [[TBAccount shared] syncSubscriptions:^(NSArray *channels, NSError *error) {
             if (error) TBLog(@"Subscriptions: %@", error.localizedDescription);
             [weakSelf reloadFeed];

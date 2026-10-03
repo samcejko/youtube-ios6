@@ -8,6 +8,7 @@ typedef NS_ENUM(NSInteger, TBClient) {
     TBClientWeb = 0,
     TBClientIOS,
     TBClientAndroid,
+    TBClientTV,
 };
 
 // A page of items (TBVideo, TBChannel, TBPlaylist, TBShelf) and the token of the next page (nil = the last one)
@@ -26,11 +27,13 @@ extern NSString * const TBBrowseNews;
 extern NSString * const TBBrowseSports;
 extern NSString * const TBBrowseLive;
 
-// YouTube's InnerTube API (youtubei/v1), as an anonymous visitor. Completion blocks run on the main thread;
+// YouTube's InnerTube API (youtubei/v1). Completion blocks run on the main thread;
 // a cancelled task never calls back.
 @interface TBInnertube : NSObject
 
 + (TBHTTPTask *)call:(NSString *)endpoint body:(NSDictionary *)body client:(TBClient)client
+          completion:(void (^)(NSDictionary *response, NSError *error))completion;
++ (TBHTTPTask *)call:(NSString *)endpoint body:(NSDictionary *)body client:(TBClient)client token:(NSString *)token
           completion:(void (^)(NSDictionary *response, NSError *error))completion;
 
 // Search: videos, channels, playlists and shorts shelves; `filter` is one of the constants above or nil
@@ -40,6 +43,10 @@ extern NSString * const TBBrowseLive;
 // Browsing. `browseId` is a channel ("UC..."), a playlist ("VLPL...") or a page ("FE..."); `params` picks a tab.
 + (TBHTTPTask *)browse:(NSString *)browseId params:(NSString *)params continuation:(NSString *)continuation
             completion:(void (^)(NSDictionary *response, NSArray *items, NSString *continuation, NSError *error))completion;
+// Authenticated browse: passes the account's access token if signed in (using TV client for TV login),
+// unlocking personal feeds like "FEwhat_to_watch" (Home recommendations) or "FEhistory" (History).
++ (TBHTTPTask *)authenticatedBrowse:(NSString *)browseId params:(NSString *)params continuation:(NSString *)continuation
+                         completion:(void (^)(NSDictionary *response, NSArray *items, NSString *continuation, NSError *error))completion;
 // A channel page: the channel (with its tabs) and the items of the selected tab (the home tab unless params say otherwise)
 + (TBHTTPTask *)channel:(NSString *)channelId params:(NSString *)params
              completion:(void (^)(TBChannel *channel, NSArray *items, NSString *continuation, NSError *error))completion;
@@ -48,6 +55,8 @@ extern NSString * const TBBrowseLive;
               completion:(void (^)(TBPlaylist *playlist, NSArray *items, NSString *continuation, NSError *error))completion;
 // The shelves of a topic page (Music, Gaming...), each with its first items
 + (TBHTTPTask *)shelvesOfPage:(NSString *)browseId completion:(void (^)(NSArray *shelves, NSError *error))completion;
++ (TBHTTPTask *)authenticatedShelvesOfPage:(NSString *)browseId completion:(void (^)(NSArray *shelves, NSError *error))completion;
++ (TBHTTPTask *)authenticatedGuide:(void (^)(NSDictionary *response, NSArray *channels, NSError *error))completion;
 // A channel id for a handle or a URL (youtube.com/@name, /c/name, /user/name)
 + (TBHTTPTask *)resolveURL:(NSString *)url completion:(void (^)(NSString *channelId, NSString *videoId, NSString *playlistId, NSError *error))completion;
 
