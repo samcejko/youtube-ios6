@@ -9,7 +9,7 @@ NSString * const TBAccountDidChangeNotification = @"TBAccountDidChangeNotificati
 // The OAuth client ("TVs and Limited Input devices") of the author. Google's device flow also wants the client's
 // secret; that one is never in the repository or the binary - the user types it into Settings once and it stays
 // in the device's keychain.
-static NSString * const TBGoogleClientID = @"639736973352-bqh6hjobao8dajhnai5bg6d7dsm5ctum.apps.googleusercontent.com";
+static NSString * const TBGoogleClientID = @"1045854580563-l69l1lcri5tbkh4cscffhh58tgq3pah8.apps.googleusercontent.com";
 static NSString * const TBGoogleScope = @"https://www.googleapis.com/auth/youtube";
 static NSString * const TBGoogleDeviceCodeURL = @"https://oauth2.googleapis.com/device/code";
 static NSString * const TBGoogleTokenURL = @"https://oauth2.googleapis.com/token";
