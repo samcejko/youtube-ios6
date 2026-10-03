@@ -32,6 +32,9 @@
 - (void)viewWillAppear:(BOOL)animated
 {
     [super viewWillAppear:animated];
+    if ([[TBAccount shared] isSignedIn] && ![[TBLibrary shared] subscriptions].count) {
+        [[TBAccount shared] syncSubscriptions:nil];
+    }
     [self refresh];
 }
 
@@ -116,6 +119,33 @@
         }];
         grid.title = L(@"Watch later");
         grid.emptyText = L(@"Nothing saved for later. The button is on every video's page.");
+        [self.navigationController pushViewController:grid animated:YES];
+        return;
+    }
+    if (indexPath.row == 2 && [[TBAccount shared] isSignedIn]) {
+        TBGridViewController *grid = [[TBGridViewController alloc] initWithStyle:TBGridStyleVideos loader:^TBHTTPTask *(NSString *continuation, TBItemsCompletion completion) {
+            NSArray *cached = [[TBLibrary shared] subscriptions];
+            if (cached.count > 0 && !continuation) {
+                if (completion) completion(cached, nil, nil);
+                return nil;
+            }
+            return [[TBAccount shared] syncSubscriptions:^(NSArray *channels, NSError *error) {
+                if (completion) completion(channels ?: cached, nil, error);
+            }];
+        }];
+        grid.title = L(@"Subscriptions");
+        grid.emptyText = L(@"No subscriptions yet.");
+        [grid replaceItems:[library subscriptions]];
+        __weak TBGridViewController *weakGrid = grid;
+        grid.onRemoveItem = ^(id item) {
+            if (![item isKindOfClass:[TBChannel class]]) return;
+            NSString *channelId = [(TBChannel *)item channelId];
+            [[TBAccount shared] unsubscribeFrom:channelId completion:^(NSError *error) {
+                if (error) { [TBUtils alertWithTitle:L(@"Subscriptions") message:error.localizedDescription]; return; }
+                [[TBLibrary shared] unsubscribe:channelId];
+                [weakGrid replaceItems:[[TBLibrary shared] subscriptions]];
+            }];
+        };
         [self.navigationController pushViewController:grid animated:YES];
         return;
     }

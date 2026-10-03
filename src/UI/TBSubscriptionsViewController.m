@@ -76,17 +76,8 @@
     self.forceNext = YES;
     [self updateEmptyText];
     if ([[TBAccount shared] isSignedIn]) {
-        __weak TBSubscriptionsViewController *weakSelf = self;
-        if (![[TBAccount shared] usesCustomOAuthClient]) {
-            [TBInnertube authenticatedGuide:^(NSDictionary *response, NSArray *channels, NSError *error) {
-                if (channels.count) {
-                    [[TBLibrary shared] replaceSubscriptions:channels];
-                }
-                [weakSelf reloadFeed];
-            }];
-            return;
-        }
         // a pull brings the account's subscriptions up to date first, the feed follows
+        __weak TBSubscriptionsViewController *weakSelf = self;
         [[TBAccount shared] syncSubscriptions:^(NSArray *channels, NSError *error) {
             if (error) TBLog(@"Subscriptions: %@", error.localizedDescription);
             [weakSelf reloadFeed];
@@ -110,7 +101,20 @@
 
 - (void)channelsTapped
 {
-    TBGridViewController *grid = [[TBGridViewController alloc] initWithStyle:TBGridStyleVideos loader:nil];
+    TBGridViewController *grid = [[TBGridViewController alloc] initWithStyle:TBGridStyleVideos loader:^TBHTTPTask *(NSString *continuation, TBItemsCompletion completion) {
+        NSArray *cached = [[TBLibrary shared] subscriptions];
+        if (cached.count > 0 && !continuation) {
+            if (completion) completion(cached, nil, nil);
+            return nil;
+        }
+        if ([[TBAccount shared] isSignedIn]) {
+            return [[TBAccount shared] syncSubscriptions:^(NSArray *channels, NSError *error) {
+                if (completion) completion(channels ?: cached, nil, error);
+            }];
+        }
+        if (completion) completion(cached, nil, nil);
+        return nil;
+    }];
     grid.title = L(@"Channels");
     grid.emptyText = L(@"No subscriptions yet.");
     [grid replaceItems:[[TBLibrary shared] subscriptions]];

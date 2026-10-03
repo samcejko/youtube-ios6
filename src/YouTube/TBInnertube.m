@@ -887,6 +887,12 @@ static void TBWalk(id node, NSMutableArray *items, NSMutableArray *continuations
             NSMutableArray *channels = [NSMutableArray array];
             NSMutableArray *entries = [NSMutableArray array];
             TBFindAll(response, @"guideEntryRenderer", entries, 0);
+            TBFindAll(response, @"guideItemRenderer", entries, 0);
+            TBFindAll(response, @"compactLinkRenderer", entries, 0);
+            TBFindAll(response, @"guideAccountRenderer", entries, 0);
+            if (!entries.count) {
+                TBFindAll(response, @"browseEndpoint", entries, 0);
+            }
             NSMutableSet *seen = [NSMutableSet set];
             for (NSDictionary *entry in entries) {
                 NSString *browseId = TBBrowseIdIn(entry);
@@ -894,11 +900,25 @@ static void TBWalk(id node, NSMutableArray *items, NSMutableArray *continuations
                 [seen addObject:browseId];
                 TBChannel *c = [[TBChannel alloc] init];
                 c.channelId = browseId;
-                c.title = TBText(entry[@"formattedTitle"]) ?: TBText(entry[@"title"]);
-                c.avatarURL = TBThumbnailURL(entry[@"thumbnail"]);
+                c.title = TBText(entry[@"formattedTitle"]) ?: (TBText(entry[@"title"]) ?: (TBText(entry[@"text"]) ?: TBText(entry[@"accessibility"])));
+                if (!c.title.length) c.title = TBText(TBFindFirst(entry, @"text"));
+                c.avatarURL = TBThumbnailURL(entry[@"thumbnail"] ?: TBFindFirst(entry, @"thumbnail"));
                 [channels addObject:c];
             }
-            if (completion) completion(response, channels, nil);
+            if (channels.count > 0 || [[TBAccount shared] usesCustomOAuthClient]) {
+                TBLog(@"authenticatedGuide: found %lu channels", (unsigned long)channels.count);
+                if (completion) completion(response, channels, nil);
+                return;
+            }
+            // Fallback for TV client: query FEchannels browse endpoint
+            [self authenticatedBrowse:@"FEchannels" params:nil continuation:nil completion:^(NSDictionary *chResp, NSArray *chItems, NSString *chCont, NSError *chErr) {
+                NSMutableArray *fallbackList = [NSMutableArray array];
+                for (id item in chItems) {
+                    if ([item isKindOfClass:[TBChannel class]]) [fallbackList addObject:item];
+                }
+                TBLog(@"authenticatedGuide (FEchannels fallback): found %lu channels", (unsigned long)fallbackList.count);
+                if (completion) completion(chResp ?: response, fallbackList, chErr ?: error);
+            }];
         }];
     }];
 }

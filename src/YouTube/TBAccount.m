@@ -1,5 +1,6 @@
 #import "TBAccount.h"
 #import "TBLibrary.h"
+#import "TBInnertube.h"
 #import "TBSettings.h"
 #import "TBUtils.h"
 #import "TBCommon.h"
@@ -162,6 +163,13 @@ static void TBKeychainWrite(NSDictionary *tokens)
         _channelId = [d stringForKey:@"accountChannelId"];
         _handle = [d stringForKey:@"accountHandle"];
         _avatarURL = [d stringForKey:@"accountAvatar"];
+        if (_refreshToken.length) {
+            TBMain(^{
+                if (![[TBLibrary shared] subscriptions].count) {
+                    [[TBAccount shared] syncSubscriptions:nil];
+                }
+            });
+        }
     }
     return self;
 }
@@ -485,6 +493,14 @@ static NSString *TBAPIThumbnail(NSDictionary *thumbnails)
 
 - (TBHTTPTask *)syncSubscriptions:(void (^)(NSArray *channels, NSError *error))completion
 {
+    if (![self usesCustomOAuthClient]) {
+        return [TBInnertube authenticatedGuide:^(NSDictionary *response, NSArray *channels, NSError *error) {
+            if (channels.count) {
+                [[TBLibrary shared] replaceSubscriptions:channels];
+            }
+            if (completion) completion(channels, error);
+        }];
+    }
     TBHTTPTask *outer = [[TBHTTPTask alloc] init];
     __weak TBAccount *weakSelf = self;
     outer.cancelBlock = ^{ [weakSelf.syncRequest cancel]; weakSelf.syncRequest = nil; };
@@ -530,6 +546,17 @@ static NSString *TBAPIThumbnail(NSDictionary *thumbnails)
 
 - (TBHTTPTask *)subscribeTo:(TBChannel *)channel completion:(void (^)(NSError *error))completion
 {
+    if (![self usesCustomOAuthClient]) {
+        return [self withAccessToken:^(NSString *token, NSError *authError) {
+            if (!token.length) { if (completion) completion(authError); return; }
+            [TBInnertube call:@"subscription/subscribe" body:@{ @"channelIds": @[ channel.channelId ?: @"" ] } client:TBClientTV token:token completion:^(NSDictionary *response, NSError *error) {
+                if (!error && channel.channelId.length) {
+                    [[TBLibrary shared] subscribe:channel];
+                }
+                if (completion) completion(error);
+            }];
+        }];
+    }
     __weak TBAccount *weakSelf = self;
     id body = @{ @"snippet": @{ @"resourceId": @{ @"kind": @"youtube#channel", @"channelId": channel.channelId ?: @"" } } };
     return [self api:@"POST" path:@"subscriptions" query:@{ @"part": @"snippet" } body:body completion:^(NSDictionary *json, NSError *error) {
@@ -543,6 +570,17 @@ static NSString *TBAPIThumbnail(NSDictionary *thumbnails)
 
 - (TBHTTPTask *)unsubscribeFrom:(NSString *)channelId completion:(void (^)(NSError *error))completion
 {
+    if (![self usesCustomOAuthClient]) {
+        return [self withAccessToken:^(NSString *token, NSError *authError) {
+            if (!token.length) { if (completion) completion(authError); return; }
+            [TBInnertube call:@"subscription/unsubscribe" body:@{ @"channelIds": @[ channelId ?: @"" ] } client:TBClientTV token:token completion:^(NSDictionary *response, NSError *error) {
+                if (!error && channelId.length) {
+                    [[TBLibrary shared] unsubscribe:channelId];
+                }
+                if (completion) completion(error);
+            }];
+        }];
+    }
     TBHTTPTask *outer = [[TBHTTPTask alloc] init];
     __block TBHTTPTask *inner = nil;
     outer.cancelBlock = ^{ [inner cancel]; };
@@ -569,6 +607,15 @@ static NSString *TBAPIThumbnail(NSDictionary *thumbnails)
 
 - (TBHTTPTask *)rateVideo:(NSString *)videoId rating:(NSString *)rating completion:(void (^)(NSError *error))completion
 {
+    if (![self usesCustomOAuthClient]) {
+        return [self withAccessToken:^(NSString *token, NSError *authError) {
+            if (!token.length) { if (completion) completion(authError); return; }
+            NSString *ep = [rating isEqualToString:@"like"] ? @"like/like" : ([rating isEqualToString:@"dislike"] ? @"like/dislike" : @"like/removelike");
+            [TBInnertube call:ep body:@{ @"target": @{ @"videoId": videoId ?: @"" } } client:TBClientTV token:token completion:^(NSDictionary *response, NSError *error) {
+                if (completion) completion(error);
+            }];
+        }];
+    }
     return [self api:@"POST" path:@"videos/rate" query:@{ @"id": videoId ?: @"", @"rating": rating ?: @"none" } body:nil completion:^(NSDictionary *json, NSError *error) {
         completion(error);
     }];
@@ -576,6 +623,10 @@ static NSString *TBAPIThumbnail(NSDictionary *thumbnails)
 
 - (TBHTTPTask *)ratingOfVideo:(NSString *)videoId completion:(void (^)(NSString *rating, NSError *error))completion
 {
+    if (![self usesCustomOAuthClient]) {
+        if (completion) completion(@"none", nil);
+        return nil;
+    }
     return [self api:@"GET" path:@"videos/getRating" query:@{ @"id": videoId ?: @"" } body:nil completion:^(NSDictionary *json, NSError *error) {
         if (error) { completion(nil, error); return; }
         completion(TBStr(TBDict([TBArr(json[@"items"]) firstObject])[@"rating"]) ?: @"none", nil);
