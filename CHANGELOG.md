@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.2.2 (2026-10-03)
+
+- Adaptive videos were stuck at 480p: "Automatic" quality now starts at 720p (iOS 6's player hardly climbs once it
+  begins low) and the player drops only if the connection cannot keep up. 1080p stays in the quality menu. (Long
+  videos with no adaptive stream are still the 360p MP4 that YouTube serves without a PO token.)
+
 ## 0.2.1 (2026-10-03)
 
 - Fixed a crash on the Google sign-in screen (the token polling ran against a freed block).

@@ -302,7 +302,11 @@ static NSDictionary *TBParseAttributes(NSString *list)
             if (chosen) *chosen = v;
             if (title) *title = [v title];
         } else {
-            TBVariant *start = [self variantFrom:source.variants forQuality:@"480"] ?: source.variants.lastObject;
+            // "Auto": start on the highest the device allows and let the player drop if the connection cannot keep up.
+            // (iOS 6's adaptive switching barely climbs once it starts low, so it must begin high - starting at 480
+            // left every video stuck at 480p.) 1080p30 on the iPad 2 is heavy, so Auto tops out at 720p; the ladder
+            // still carries 1080p for the quality menu.
+            TBVariant *start = [self variantFrom:source.variants forQuality:@"720"] ?: source.variants.firstObject;
             master = [self masterPlaylistForVariants:source.variants audio:source.audioRenditions startingWith:start];
             if (title) *title = L(@"Auto");
         }
