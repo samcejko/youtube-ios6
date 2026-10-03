@@ -167,7 +167,7 @@ typedef NS_ENUM(NSInteger, TBSettingsSection) {
 - (NSInteger)tableView:(UITableView *)tableView numberOfRowsInSection:(NSInteger)section
 {
     switch ((TBSettingsSection)section) {
-        case TBSectionAccount: return 2;
+        case TBSectionAccount: return [[TBAccount shared] isSignedIn] ? 2 : 3;   // (signed out: sign in, client id, client secret)
         case TBSectionPlayback: return 5;
         case TBSectionSponsorBlock: return 2;
         case TBSectionCaptions: return 2;
@@ -201,7 +201,7 @@ typedef NS_ENUM(NSInteger, TBSettingsSection) {
     switch ((TBSettingsSection)section) {
         case TBSectionAccount: return [[TBAccount shared] isSignedIn]
             ? L(@"Subscriptions and likes are linked to the account. The watch history and \"watch later\" stay on this device: YouTube's API does not offer them.")
-            : L(@"Sign in with a code at google.com/device, as a TV does. The app's Google OAuth client needs its secret entered once (from the author's Google Cloud project).");
+            : L(@"Sign in with a code at google.com/device, as a TV does. Create your own Google OAuth client (a 5-minute setup; see the README) and enter its ID and secret, or sign in with the built-in client if you are one of its test users.");
         case TBSectionPlayback: return L(@"This device decodes H.264 up to 1080p at 30 frames per second; renditions beyond that are left out of \"Automatic\". \"MP4 only\" plays the plain 360p file instead of the adaptive stream.");
         case TBSectionSponsorBlock: return L(@"Skips the parts of videos the SponsorBlock community marked (sponsor.ajay.app).");
         case TBSectionContent: return L(@"The language of titles and the region of the explore pages, as YouTube offers them.");
@@ -243,6 +243,9 @@ typedef NS_ENUM(NSInteger, TBSettingsSection) {
             } else if (row == 0) {
                 cell.textLabel.text = L(@"Sign in with Google");
                 cell.accessoryType = UITableViewCellAccessoryDisclosureIndicator;
+            } else if (row == 1) {
+                cell.textLabel.text = L(@"Google client ID");
+                cell.detailTextLabel.text = [account usesOwnClientId] ? L(@"Set") : L(@"Default");
             } else {
                 cell.textLabel.text = L(@"Google client secret");
                 cell.detailTextLabel.text = [TBAccount isConfigured] ? L(@"Set") : L(@"Not set");
@@ -375,6 +378,19 @@ typedef NS_ENUM(NSInteger, TBSettingsSection) {
     [alert show];
 }
 
+- (void)askForClientId
+{
+    UIAlertView *alert = [[UIAlertView alloc] initWithTitle:L(@"Google client ID") message:L(@"Paste the client ID (…apps.googleusercontent.com). Leave empty for the built-in one.") delegate:self
+                                          cancelButtonTitle:L(@"Cancel") otherButtonTitles:L(@"OK"), nil];
+    alert.alertViewStyle = UIAlertViewStylePlainTextInput;
+    UITextField *field = [alert textFieldAtIndex:0];
+    field.autocapitalizationType = UITextAutocapitalizationTypeNone;
+    field.autocorrectionType = UITextAutocorrectionTypeNo;
+    field.text = [[TBAccount shared] usesOwnClientId] ? [TBAccount shared].clientId : @"";
+    alert.tag = 73;
+    [alert show];
+}
+
 - (void)alertView:(UIAlertView *)alertView clickedButtonAtIndex:(NSInteger)buttonIndex
 {
     if (alertView.tag == 71) {
@@ -385,6 +401,10 @@ typedef NS_ENUM(NSInteger, TBSettingsSection) {
             self.signInAfterSecret = NO;
             [self.navigationController pushViewController:[[TBGoogleLoginViewController alloc] init] animated:YES];
         }
+    } else if (alertView.tag == 73) {
+        if (buttonIndex == alertView.cancelButtonIndex) return;
+        [TBAccount shared].clientId = [alertView textFieldAtIndex:0].text;
+        [self.tableView reloadData];
     } else if (alertView.tag == 72) {
         if (buttonIndex != alertView.cancelButtonIndex) [[TBAccount shared] signOut];
     }
@@ -446,6 +466,8 @@ typedef NS_ENUM(NSInteger, TBSettingsSection) {
         } else if (row == 0) {
             if ([TBAccount isConfigured]) [self.navigationController pushViewController:[[TBGoogleLoginViewController alloc] init] animated:YES];
             else { self.signInAfterSecret = YES; [self askForClientSecret]; }
+        } else if (row == 1) {
+            [self askForClientId];
         } else {
             self.signInAfterSecret = NO;
             [self askForClientSecret];

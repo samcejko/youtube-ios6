@@ -5,8 +5,8 @@
 - Google account: sign in with a code at google.com/device (the way a TV does). The account's subscriptions come
   into the app and stay in step (Subscribe buttons act on the account), videos can be liked and disliked, and the
   Library gains "Liked videos" and "My playlists". The watch history and "watch later" remain on the device - the
-  YouTube Data API does not offer them. The sign-in needs the app's Google client secret entered once in Settings;
-  it stays in the keychain.
+  YouTube Data API does not offer them. Settings → Account takes your own Google OAuth client ID and secret (a short
+  one-time setup, see the README); both stay in the keychain, never in the repository or the build.
 - Search showed only shorts, channels and playlists: ordinary videos were dropped by the parser. Fixed; shorts now
   follow the videos in the results (at most six) and carry a "Shorts" badge.
 - SponsorBlock skips "non-music" parts of music videos by default as well (the extension's own default); the log

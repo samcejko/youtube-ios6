@@ -49,17 +49,32 @@ know, and since 2025 it hands them to clients without a Google account for rough
 The converter (`src/Net/TBRemux.m`) would serve every video in full HD the moment the first-minute limit is lifted or
 a PO token can be supplied; nothing else in the app would change.
 
-### Account
+### Account (optional)
 
-Google's sign-in page does not work on the iOS 6 engine and Google closed its TV sign-in to third-party YouTube
-clients, so Tubie uses the official way left: an OAuth client of the "TVs and Limited Input devices" kind and the
-**YouTube Data API v3**. Settings → Account shows a code, you confirm it at google.com/device on any other device,
-and the tokens stay in the device's keychain. The device flow also requires the OAuth client's secret; it is not in
-this repository or in the binary - Settings asks for it once (the author hands it out on request) and keeps it in the
-keychain too. With the account: subscriptions (synced both ways), likes and dislikes, liked videos and own playlists.
-Not with it: the watch history, "watch later" and the personalised home page, which the Data API does not expose -
-those stay local. The API has a daily quota of 10 000 units per project; browsing costs 1 unit per page, a like or a
-subscription 50.
+Google's sign-in page does not run on the iOS 6 engine, so Tubie signs in the way a TV does: an OAuth client of the
+"TVs and Limited Input devices" kind and the **YouTube Data API v3**. Settings → Account shows a code, you confirm it
+at google.com/device on any other device, and the tokens stay in the device's keychain. With the account:
+subscriptions (synced both ways), likes and dislikes, liked videos and your own playlists. Not with it: the watch
+history, "watch later" and the personalised home page, which the Data API does not expose - those stay local and work
+without any account.
+
+Tubie does **not** impersonate YouTube's own app, so it cannot offer one shared, ready-made login: a third-party
+YouTube client cannot pass Google's OAuth verification, and embedding Google's first-party credentials would be
+impersonating their app. Instead **you use your own Google client** (free, about five minutes, one time):
+
+1. [Google Cloud Console](https://console.cloud.google.com/) → create a project (or pick one).
+2. **APIs & Services → Library** → enable **YouTube Data API v3**.
+3. **APIs & Services → OAuth consent screen** → User type **External** → fill the name/e-mail → **Save**. Leave the
+   publishing status at **Testing** and add your own Google account under **Test users**. (Testing is all a personal
+   app needs; "production" is what would require Google's verification.)
+4. **APIs & Services → Credentials → Create credentials → OAuth client ID** → application type **TVs and Limited Input
+   devices**. Copy the **client ID** and **client secret**.
+5. In Tubie: Settings → Account → paste the **client ID** and the **client secret**, then **Sign in with Google**.
+
+The client secret lives only in your device's keychain, never in this repository or the build. (A build may carry a
+default client baked in from a CI secret, but only that project's own test users can sign in with it - everyone else
+uses their own as above.) The API has a daily quota of 10 000 units per project (plenty for one person); a test-mode
+refresh token lasts 7 days, after which Tubie asks you to sign in again.
 
 ## Installing on the device
 

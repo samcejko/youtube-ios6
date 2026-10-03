@@ -6,10 +6,12 @@
 
 NSString * const TBAccountDidChangeNotification = @"TBAccountDidChangeNotification";
 
-// The OAuth client ("TVs and Limited Input devices") of the author. Google's device flow also wants the client's
-// secret; that one is never in the repository or the binary - the user types it into Settings once and it stays
-// in the device's keychain.
-static NSString * const TBGoogleClientID = @"1045854580563-l69l1lcri5tbkh4cscffhh58tgq3pah8.apps.googleusercontent.com";
+// The Google OAuth client of the sign-in, of the "TVs and Limited Input devices" kind. The id below is the author's
+// (a client id is public by nature); Google's device flow also wants the client's SECRET, which is never in the
+// repository or the binary. Each person running their own build enters their own client id and secret in Settings
+// (from their own Google Cloud project, where they are a test user) - see the README. What is entered wins over the
+// built-in default, and both live in the device's keychain.
+static NSString * const TBGoogleDefaultClientID = @"1045854580563-l69l1lcri5tbkh4cscffhh58tgq3pah8.apps.googleusercontent.com";
 static NSString * const TBGoogleScope = @"https://www.googleapis.com/auth/youtube";
 static NSString * const TBGoogleDeviceCodeURL = @"https://oauth2.googleapis.com/device/code";
 static NSString * const TBGoogleTokenURL = @"https://oauth2.googleapis.com/token";
@@ -59,6 +61,7 @@ static void TBKeychainWrite(NSDictionary *tokens)
 @interface TBAccount ()
 @property (nonatomic, strong) TBHTTPTask *signInRequest;     // the device-code or token request under way (cancelled with the sign-in task)
 @property (nonatomic, strong) TBHTTPTask *syncRequest;       // the subscriptions page under way (cancelled with the sync task)
+@property (nonatomic, copy) NSString *storedClientId;       // the client id typed into Settings (nil = the built-in default)
 @property (nonatomic, copy) NSString *accessToken;
 - (void)pollDeviceCode:(NSString *)deviceCode secret:(NSString *)secret interval:(NSTimeInterval)interval deadline:(NSDate *)deadline
                  after:(NSTimeInterval)wait task:(TBHTTPTask *)outer completion:(void (^)(NSError *error))completion;
@@ -88,6 +91,25 @@ static void TBKeychainWrite(NSDictionary *tokens)
     return [TBAccount shared].clientSecret.length > 0;
 }
 
+- (NSString *)clientId
+{
+    return self.storedClientId.length ? self.storedClientId : TBGoogleDefaultClientID;
+}
+
+- (void)setClientId:(NSString *)clientId
+{
+    NSString *trimmed = [clientId stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceAndNewlineCharacterSet]];
+    // (the built-in default typed back in is treated as "use the default")
+    self.storedClientId = (trimmed.length && ![trimmed isEqualToString:TBGoogleDefaultClientID]) ? trimmed : nil;
+    [self writeKeychain];
+    [self notify];
+}
+
+- (BOOL)usesOwnClientId
+{
+    return self.storedClientId.length > 0;
+}
+
 - (instancetype)init
 {
     self = [super init];
@@ -95,6 +117,7 @@ static void TBKeychainWrite(NSDictionary *tokens)
         _subscriptionIds = [NSMutableDictionary dictionary];
         NSDictionary *kept = TBKeychainRead();
         _clientSecret = kept[@"secret"];
+        _storedClientId = kept[@"clientId"];
 #ifdef TB_GOOGLE_CLIENT_SECRET
         // the secret the build was given (a repository secret of the CI); one typed into Settings wins
         if (!_clientSecret.length && strlen(TB_GOOGLE_CLIENT_SECRET) > 0) _clientSecret = @TB_GOOGLE_CLIENT_SECRET;
@@ -125,6 +148,7 @@ static void TBKeychainWrite(NSDictionary *tokens)
 {
     NSMutableDictionary *kept = [NSMutableDictionary dictionary];
     if (self.clientSecret) kept[@"secret"] = self.clientSecret;
+    if (self.storedClientId) kept[@"clientId"] = self.storedClientId;
     if (self.accessToken) kept[@"access"] = self.accessToken;
     if (self.refreshToken) kept[@"refresh"] = self.refreshToken;
     if (self.tokenExpiry) kept[@"expiry"] = self.tokenExpiry;
@@ -176,7 +200,8 @@ static void TBKeychainWrite(NSDictionary *tokens)
         return outer;
     }
     NSString *secret = self.clientSecret;
-    self.signInRequest = [TBHTTP postForm:TBGoogleDeviceCodeURL fields:@{ @"client_id": TBGoogleClientID, @"scope": TBGoogleScope } completion:^(id json, NSInteger status, NSError *error) {
+    NSString *clientId = self.clientId;
+    self.signInRequest = [TBHTTP postForm:TBGoogleDeviceCodeURL fields:@{ @"client_id": clientId, @"scope": TBGoogleScope } completion:^(id json, NSInteger status, NSError *error) {
         TBAccount *s = weakSelf;
         if (!s || outer.isCancelled) return;
         s.signInRequest = nil;
@@ -203,7 +228,7 @@ static void TBKeychainWrite(NSDictionary *tokens)
         TBAccount *s = weakSelf;
         if (!s || outer.isCancelled) return;
         if ([deadline timeIntervalSinceNow] < 0) { completion(TBMakeError(TBErrorAuth, L(@"The code expired. Try again."))); return; }
-        NSDictionary *fields = @{ @"client_id": TBGoogleClientID, @"client_secret": secret, @"device_code": deviceCode,
+        NSDictionary *fields = @{ @"client_id": s.clientId, @"client_secret": secret, @"device_code": deviceCode,
                                   @"grant_type": @"urn:ietf:params:oauth:grant-type:device_code" };
         s.signInRequest = [TBHTTP postForm:TBGoogleTokenURL fields:fields completion:^(id json, NSInteger status, NSError *error) {
             TBAccount *account = weakSelf;
@@ -267,7 +292,7 @@ static void TBKeychainWrite(NSDictionary *tokens)
     }
     if (!self.clientSecret.length) { TBMain(^{ completion(nil, TBMakeError(TBErrorAuth, L(@"Enter the Google client secret in Settings first."))); }); return nil; }
     __weak TBAccount *weakSelf = self;
-    NSDictionary *fields = @{ @"client_id": TBGoogleClientID, @"client_secret": self.clientSecret, @"refresh_token": self.refreshToken, @"grant_type": @"refresh_token" };
+    NSDictionary *fields = @{ @"client_id": self.clientId, @"client_secret": self.clientSecret, @"refresh_token": self.refreshToken, @"grant_type": @"refresh_token" };
     return [TBHTTP postForm:TBGoogleTokenURL fields:fields completion:^(id json, NSInteger status, NSError *error) {
         TBAccount *s = weakSelf;
         NSDictionary *t = TBDict(json);

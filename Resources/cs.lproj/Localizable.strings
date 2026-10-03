@@ -207,13 +207,16 @@
 "Google account" = "Účet Google";
 "Sign in with Google" = "Přihlásit se účtem Google";
 "Google client secret" = "Tajný klíč klienta Google";
+"Google client ID" = "ID klienta Google";
 "Set" = "Zadán";
 "Not set" = "Nezadán";
+"Default" = "Výchozí";
+"Paste the client ID (…apps.googleusercontent.com). Leave empty for the built-in one." = "Vlož ID klienta (…apps.googleusercontent.com). Pro vestavěné nech prázdné.";
 "Sign out" = "Odhlásit";
 "Sign out of the Google account?" = "Odhlásit účet Google?";
 "Paste the client secret (GOCSPX-…)" = "Vlož tajný klíč klienta (GOCSPX-…)";
 "Subscriptions and likes are linked to the account. The watch history and \"watch later\" stay on this device: YouTube's API does not offer them." = "Odběry a hodnocení jsou propojené s účtem. Historie sledování a „Přehrát později“ zůstávají v zařízení: API YouTube je nenabízí.";
-"Sign in with a code at google.com/device, as a TV does. The app's Google OAuth client needs its secret entered once (from the author's Google Cloud project)." = "Přihlášení kódem na google.com/device jako u televize. Aplikace potřebuje jednou zadat tajný klíč svého OAuth klienta Google (z projektu autora v Google Cloud).";
+"Sign in with a code at google.com/device, as a TV does. Create your own Google OAuth client (a 5-minute setup; see the README) and enter its ID and secret, or sign in with the built-in client if you are one of its test users." = "Přihlášení kódem na google.com/device jako u televize. Vytvoř si vlastního OAuth klienta Google (5 minut, viz README) a zadej jeho ID a tajný klíč, nebo se přihlas vestavěným klientem, pokud jsi jeho test user.";
 "Enter the Google client secret in Settings first." = "Nejdřív zadej v Nastavení tajný klíč klienta Google.";
 "On a computer or phone, open this address and enter the code:" = "Na počítači nebo telefonu otevři tuto adresu a zadej kód:";
 "Asking Google for a code…" = "Žádám Google o kód…";

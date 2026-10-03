@@ -15,9 +15,11 @@ extern NSString * const TBAccountDidChangeNotification;
 @interface TBAccount : NSObject
 
 + (instancetype)shared;
-+ (BOOL)isConfigured;                                       // a client secret was entered
++ (BOOL)isConfigured;                                       // a client secret is set (built-in or entered)
 
-@property (nonatomic, copy) NSString *clientSecret;         // setting it posts the notification
+@property (nonatomic, copy) NSString *clientId;             // the OAuth client id; the built-in default unless Settings set one
+@property (nonatomic, copy) NSString *clientSecret;         // setting either posts the notification
+- (BOOL)usesOwnClientId;                                    // a client id other than the built-in default was entered
 - (BOOL)isSignedIn;
 @property (nonatomic, readonly, copy) NSString *channelTitle;   // the account's channel (after fetchProfile)
 @property (nonatomic, readonly, copy) NSString *channelId;
