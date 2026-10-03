@@ -294,22 +294,15 @@ static NSDictionary *TBParseAttributes(NSString *list)
     [proxy resetPlaybackState];
     if (chosen) *chosen = nil;
     if (source.variants.count) {
+        // One rendition per master, chosen here - a multi-rendition ladder does not work: iOS 6's player picks the
+        // initial variant by a low bandwidth guess and never climbs, so every video sat at 480p. "Auto" means the
+        // highest the device plays comfortably (720p; 1080p30 is heavy on the iPad 2 but stays in the quality menu).
         TBVariant *v = [self variantFrom:source.variants forQuality:quality];
-        NSString *master;
-        if (v) {
-            // one rendition only (the sound rendition still has to come along)
-            master = [self masterPlaylistForVariants:@[ v ] audio:source.audioRenditions startingWith:v];
-            if (chosen) *chosen = v;
-            if (title) *title = [v title];
-        } else {
-            // "Auto": start on the highest the device allows and let the player drop if the connection cannot keep up.
-            // (iOS 6's adaptive switching barely climbs once it starts low, so it must begin high - starting at 480
-            // left every video stuck at 480p.) 1080p30 on the iPad 2 is heavy, so Auto tops out at 720p; the ladder
-            // still carries 1080p for the quality menu.
-            TBVariant *start = [self variantFrom:source.variants forQuality:@"720"] ?: source.variants.firstObject;
-            master = [self masterPlaylistForVariants:source.variants audio:source.audioRenditions startingWith:start];
-            if (title) *title = L(@"Auto");
-        }
+        BOOL isAuto = (v == nil);
+        if (isAuto) v = [self variantFrom:source.variants forQuality:@"720"] ?: source.variants.firstObject;
+        NSString *master = [self masterPlaylistForVariants:@[ v ] audio:source.audioRenditions startingWith:v];
+        if (chosen) *chosen = isAuto ? nil : v;   // (nil keeps the quality menu on "Auto")
+        if (title) *title = isAuto ? L(@"Auto") : [v title];
         NSString *url = [proxy proxyURLForPlaylistText:master];
         return url ? [NSURL URLWithString:url] : nil;
     }
