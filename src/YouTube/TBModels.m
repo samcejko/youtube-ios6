@@ -241,16 +241,22 @@ long long TBNumberFromText(NSString *text)
     return [self.codecs rangeOfString:@"avc1" options:NSCaseInsensitiveSearch].location != NSNotFound;
 }
 
+- (NSInteger)qualityLines
+{
+    return self.width > 0 && self.width < self.height ? self.width : self.height;
+}
+
 - (NSString *)title
 {
-    if (self.height <= 0) return L(@"Video");
-    if (self.frameRate > 30.5) return [NSString stringWithFormat:@"%ldp%.0f", (long)self.height, self.frameRate];
-    return [NSString stringWithFormat:@"%ldp", (long)self.height];
+    NSInteger lines = [self qualityLines];
+    if (lines <= 0) return L(@"Video");
+    if (self.frameRate > 30.5) return [NSString stringWithFormat:@"%ldp%.0f", (long)lines, self.frameRate];
+    return [NSString stringWithFormat:@"%ldp", (long)lines];
 }
 
 - (NSString *)qualityKey
 {
-    return [NSString stringWithFormat:@"%ld", (long)self.height];
+    return [NSString stringWithFormat:@"%ld", (long)[self qualityLines]];
 }
 
 @end

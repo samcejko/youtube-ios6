@@ -97,6 +97,7 @@
 @property (nonatomic, copy) NSString *audioGroup;           // the AUDIO group the picture goes with (nil = sound inside)
 @property (nonatomic, strong) TBDashFormat *dash;           // set when the rendition is remuxed from a DASH file
 - (BOOL)isH264;
+- (NSInteger)qualityLines;                                  // the "720" of 720p: the shorter side (upright shorts are 720x1280)
 - (NSString *)title;                                        // "720p", "1080p60"
 - (NSString *)qualityKey;                                   // "720"
 @end

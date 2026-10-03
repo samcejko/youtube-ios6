@@ -266,7 +266,7 @@ static void *TBShortStatusContext = &TBShortStatusContext;
         NSString *title = nil;
         NSURL *url = [TBPlayback playerURLForSource:source quality:@"720" chosen:NULL title:&title];
         if (!url) { [s showMessage:L(@"This short cannot be played.")]; return; }
-        TBLog(@"Short %@: %@", video.videoId, title);
+        TBLog(@"Short %@: %@ (%@)", video.videoId, title, source.isRemuxed ? @"DASH remux" : (source.hasHLS ? @"HLS" : @"MP4"));
         [s loadItemWithURL:url];
         [s preloadNext];
     };
@@ -277,7 +277,7 @@ static void *TBShortStatusContext = &TBShortStatusContext;
         play(ready);
         return;
     }
-    self.loadTask = [TBPlayback sourceForVideo:video.videoId preferProgressive:YES completion:^(TBPlaybackSource *source, NSError *error) {
+    self.loadTask = [TBPlayback sourceForVideo:video.videoId preferProgressive:[TBSettings progressiveOnly] completion:^(TBPlaybackSource *source, NSError *error) {
         TBShortsViewController *s = weakSelf;
         if (!s || s.loadGeneration != generation) return;
         s.loadTask = nil;
@@ -295,7 +295,7 @@ static void *TBShortStatusContext = &TBShortStatusContext;
     self.nextSource = nil;
     self.nextSourceId = nil;
     __weak TBShortsViewController *weakSelf = self;
-    self.preloadTask = [TBPlayback sourceForVideo:next.videoId preferProgressive:YES completion:^(TBPlaybackSource *source, NSError *error) {
+    self.preloadTask = [TBPlayback sourceForVideo:next.videoId preferProgressive:[TBSettings progressiveOnly] completion:^(TBPlaybackSource *source, NSError *error) {
         TBShortsViewController *s = weakSelf;
         if (!s) return;
         s.preloadTask = nil;

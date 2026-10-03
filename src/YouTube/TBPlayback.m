@@ -5,6 +5,11 @@
 #import "TBUtils.h"
 #import "TBCommon.h"
 
+// YouTube's adaptive files answer range requests for roughly the first 60 seconds of media when the client has no
+// PO token (measured 2026-10: ~3.8% of a 27-minute file for every itag, the whole of a 7-second short). Videos up
+// to this length are remuxed in full; longer ones would stop after a minute, so they play as the 360p MP4.
+static const NSTimeInterval TBRemuxMaxSeconds = 55;
+
 @implementation TBPlaybackSource
 
 - (BOOL)hasHLS
@@ -116,7 +121,7 @@ static NSDictionary *TBParseAttributes(NSString *list)
 + (BOOL)deviceCanPlay:(TBVariant *)variant
 {
     BOOL old = [TBUtils deviceIsOldGeneration];
-    NSInteger height = variant.height;
+    NSInteger height = [variant qualityLines];   // (an upright 720x1280 short takes the decoder what a 1280x720 picture does)
     double fps = variant.frameRate > 0 ? variant.frameRate : 30;
     if (old) return height <= 720 && (height < 720 || fps <= 30.5);
     // A5 and A6: H.264 High Profile up to level 4.1, 1080p30. 1080p60 (level 4.2) is beyond them; 720p60 fits.
@@ -202,7 +207,9 @@ static NSDictionary *TBParseAttributes(NSString *list)
         if (![info.status isEqualToString:@"OK"]) { askAndroid(); return; }   // (the other client may be luckier)
         if (info.isLive || preferProgressive) { askAndroid(); return; }
         if (info.hlsManifestURL.length) { finishWithHLS(info.hlsManifestURL, TBClientIOS); return; }
-        NSArray *variants = [self remuxVariantsForInfo:info];
+        // (without a PO token YouTube serves only the first minute or so of an adaptive file: the remux is for
+        // shorts and clips; longer videos get the plain MP4 - see TBRemuxMaxSeconds)
+        NSArray *variants = info.lengthSeconds > 0 && info.lengthSeconds <= TBRemuxMaxSeconds ? [self remuxVariantsForInfo:info] : @[];
         if (variants.count) {
             source.variants = variants;
             TBAudioRendition *sound = [[TBAudioRendition alloc] init];
@@ -236,7 +243,7 @@ static NSDictionary *TBParseAttributes(NSString *list)
         v.dash = d;
         if (![self deviceCanPlay:v]) continue;
         TBVariant *last = variants.lastObject;
-        if (last && last.height == v.height && fabs(last.frameRate - v.frameRate) < 1) continue;   // (one per height and frame rate)
+        if (last && [last qualityLines] == [v qualityLines] && fabs(last.frameRate - v.frameRate) < 1) continue;   // (one per size and frame rate)
         [variants addObject:v];
     }
     return variants;
@@ -249,7 +256,7 @@ static NSDictionary *TBParseAttributes(NSString *list)
     if (!variants.count || !quality.length || [quality isEqualToString:TBQualityAuto]) return nil;
     NSInteger wanted = [quality integerValue];
     if (wanted <= 0) return nil;
-    for (TBVariant *v in variants) if (v.height <= wanted) return v;   // (highest first)
+    for (TBVariant *v in variants) if ([v qualityLines] <= wanted) return v;   // (highest first)
     return variants.lastObject;
 }
 
