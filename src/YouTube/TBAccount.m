@@ -57,7 +57,6 @@ static void TBKeychainWrite(NSDictionary *tokens)
 #pragma mark - Account
 
 @interface TBAccount ()
-@property (nonatomic, copy, readwrite) NSString *clientSecret;
 @property (nonatomic, copy) NSString *accessToken;
 @property (nonatomic, copy) NSString *refreshToken;
 @property (nonatomic, strong) NSDate *tokenExpiry;
