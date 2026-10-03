@@ -5,6 +5,7 @@
 #import "TBInnertube.h"
 #import "TBAccount.h"
 #import "TBTheme.h"
+#import "TBUtils.h"
 #import "TBCommon.h"
 
 @implementation TBLibraryViewController
