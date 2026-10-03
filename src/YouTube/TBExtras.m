@@ -100,16 +100,16 @@
     NSString *wanted = [TBSettings captionsLanguage];
     if (!wanted.length) wanted = [[NSLocale preferredLanguages] firstObject] ?: @"en";
     NSString *base = [[wanted componentsSeparatedByString:@"-"] firstObject];
-    TBCaptionTrack *exact = nil, *auto = nil, *english = nil;
+    TBCaptionTrack *exact = nil, *automatic = nil, *english = nil;
     for (TBCaptionTrack *t in tracks) {
         NSString *code = [[t.languageCode componentsSeparatedByString:@"-"] firstObject];
         if ([code isEqualToString:base]) {
             if (!t.isAuto && !exact) exact = t;
-            if (t.isAuto && !auto) auto = t;
+            if (t.isAuto && !automatic) automatic = t;
         }
         if ([code isEqualToString:@"en"] && !t.isAuto && !english) english = t;
     }
-    return exact ?: (auto ?: english);
+    return exact ?: (automatic ?: english);
 }
 
 static NSTimeInterval TBVTTTime(NSString *s)
@@ -140,8 +140,8 @@ static NSTimeInterval TBVTTTime(NSString *s)
                 if (cue && cueText.length) { cue.text = cueText; [cues addObject:cue]; }
                 cue = [[TBCaptionCue alloc] init];
                 cue.start = TBVTTTime([line substringToIndex:arrow.location]);
-                NSString *rest = [line substringFromIndex:arrow.location + 3];
-                NSRange space = [rest rangeOfString:@" " options:0 range:NSMakeRange(1, rest.length - 1)];
+                NSString *rest = [[line substringFromIndex:arrow.location + 3] stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceCharacterSet]];
+                NSRange space = [rest rangeOfString:@" "];   // ("00:00:03.000 align:start position:0%": the settings follow the time)
                 cue.end = TBVTTTime(space.location != NSNotFound ? [rest substringToIndex:space.location] : rest);
                 cueText = [NSMutableString string];
                 continue;
