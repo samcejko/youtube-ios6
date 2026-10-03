@@ -36,6 +36,7 @@ extern NSString * const TBAccountDidChangeNotification;
 - (void)signOut;
 
 // YouTube Data API v3 (the token is refreshed when it ran out). Completions run on the main thread.
+- (TBHTTPTask *)withAccessToken:(void (^)(NSString *token, NSError *error))completion;
 - (TBHTTPTask *)fetchProfile:(void (^)(NSError *error))completion;
 // Every subscribed channel (TBChannel), newest first - and the library's subscriptions become these
 - (TBHTTPTask *)syncSubscriptions:(void (^)(NSArray *channels, NSError *error))completion;
