@@ -11,12 +11,12 @@
 #import "TBCommon.h"
 
 typedef NS_ENUM(NSInteger, TBSettingsSection) {
-    TBSectionPlayback = 0,
+    TBSectionAppearance = 0,
+    TBSectionPlayback,
     TBSectionSponsorBlock,
     TBSectionCaptions,
     TBSectionContent,
     TBSectionPrivacy,
-    TBSectionAppearance,
     TBSectionAdvanced,
     TBSectionAbout,
     TBSectionCount,

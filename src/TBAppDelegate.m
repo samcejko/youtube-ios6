@@ -238,6 +238,27 @@ static BOOL TBPressView(UIView *v, NSString *text)
         [self.rootViewController selectTab:[params[@"n"] integerValue]];
         return YES;
     }
+    if ([target isEqualToString:@"scroll"]) {
+        // scroll?y=400 (or y=end) moves the largest scroll view on screen, so that rows further down can be pressed
+        UIScrollView *largest = nil;
+        NSMutableArray *views = [NSMutableArray array];
+        for (UIWindow *w in [UIApplication sharedApplication].windows) if (!w.hidden) [views addObject:w];
+        for (NSUInteger i = 0; i < views.count; i++) {
+            UIView *v = views[i];
+            if ([v isKindOfClass:[UIScrollView class]] && !v.hidden && v.window) {
+                CGFloat area = v.bounds.size.width * v.bounds.size.height;
+                if (!largest || area > largest.bounds.size.width * largest.bounds.size.height) largest = (UIScrollView *)v;
+            }
+            [views addObjectsFromArray:v.subviews];
+        }
+        if (largest) {
+            CGFloat maxY = MAX(0, largest.contentSize.height + largest.contentInset.bottom - largest.bounds.size.height);
+            CGFloat y = [params[@"y"] isEqualToString:@"end"] ? maxY : MIN(maxY, MAX(-largest.contentInset.top, [params[@"y"] doubleValue]));
+            [largest setContentOffset:CGPointMake(largest.contentOffset.x, y) animated:NO];
+        }
+        TBLog(@"Scroll: %@", largest ? NSStringFromClass([largest class]) : @"no scroll view");
+        return YES;
+    }
     if ([target isEqualToString:@"back"]) {
         UIViewController *top = [TBNavigator presenterFrom:nil];
         if ([top isKindOfClass:[UITabBarController class]]) top = [(UITabBarController *)top selectedViewController];
