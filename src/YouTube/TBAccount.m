@@ -57,7 +57,13 @@ static void TBKeychainWrite(NSDictionary *tokens)
 #pragma mark - Account
 
 @interface TBAccount ()
+@property (nonatomic, strong) TBHTTPTask *signInRequest;     // the device-code or token request under way (cancelled with the sign-in task)
+@property (nonatomic, strong) TBHTTPTask *syncRequest;       // the subscriptions page under way (cancelled with the sync task)
 @property (nonatomic, copy) NSString *accessToken;
+- (void)pollDeviceCode:(NSString *)deviceCode secret:(NSString *)secret interval:(NSTimeInterval)interval deadline:(NSDate *)deadline
+                 after:(NSTimeInterval)wait task:(TBHTTPTask *)outer completion:(void (^)(NSError *error))completion;
+- (void)fetchSubscriptionsPage:(NSString *)token into:(NSMutableArray *)channels ids:(NSMutableDictionary *)ids task:(TBHTTPTask *)outer
+                    completion:(void (^)(NSArray *channels, NSError *error))completion;
 @property (nonatomic, copy) NSString *refreshToken;
 @property (nonatomic, strong) NSDate *tokenExpiry;
 @property (nonatomic, copy, readwrite) NSString *channelTitle;
@@ -163,64 +169,66 @@ static void TBKeychainWrite(NSDictionary *tokens)
                            completion:(void (^)(NSError *error))completion
 {
     TBHTTPTask *outer = [[TBHTTPTask alloc] init];
-    __block TBHTTPTask *inner = nil;
-    outer.cancelBlock = ^{ [inner cancel]; };
+    __weak TBAccount *weakSelf = self;
+    outer.cancelBlock = ^{ [weakSelf.signInRequest cancel]; weakSelf.signInRequest = nil; };
     if (![TBAccount isConfigured]) {
         TBMain(^{ completion(TBMakeError(TBErrorAuth, L(@"Enter the Google client secret in Settings first."))); });
         return outer;
     }
     NSString *secret = self.clientSecret;
-    __weak TBAccount *weakSelf = self;
-    inner = [TBHTTP postForm:TBGoogleDeviceCodeURL fields:@{ @"client_id": TBGoogleClientID, @"scope": TBGoogleScope } completion:^(id json, NSInteger status, NSError *error) {
-        if (outer.isCancelled) return;
+    self.signInRequest = [TBHTTP postForm:TBGoogleDeviceCodeURL fields:@{ @"client_id": TBGoogleClientID, @"scope": TBGoogleScope } completion:^(id json, NSInteger status, NSError *error) {
+        TBAccount *s = weakSelf;
+        if (!s || outer.isCancelled) return;
+        s.signInRequest = nil;
         NSDictionary *d = TBDict(json);
         NSString *deviceCode = TBStr(d[@"device_code"]), *userCode = TBStr(d[@"user_code"]);
         if (error || !deviceCode.length || !userCode.length) { completion([TBAccount errorFromOAuth:json status:status fallback:error]); return; }
         NSString *url = TBStr(d[@"verification_url"]) ?: @"https://www.google.com/device";
         NSTimeInterval interval = MAX(3, TBDbl(d[@"interval"]) > 0 ? TBDbl(d[@"interval"]) : 5);
         NSTimeInterval expires = TBDbl(d[@"expires_in"]) > 0 ? TBDbl(d[@"expires_in"]) : 1800;
-        NSDate *deadline = [NSDate dateWithTimeIntervalSinceNow:expires];
         codeHandler(userCode, url);
         TBLog(@"Google sign-in: code %@ shown, polling every %.0f s", userCode, interval);
-        // polling until Google says yes, no, or too late
-        __block void (^poll)(NSTimeInterval) = nil;
-        __block __weak void (^weakPoll)(NSTimeInterval) = nil;
-        poll = ^(NSTimeInterval wait) {
-            void (^strongPoll)(NSTimeInterval) = weakPoll;
-            dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(wait * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
-                if (outer.isCancelled) return;
-                if ([deadline timeIntervalSinceNow] < 0) { completion(TBMakeError(TBErrorAuth, L(@"The code expired. Try again."))); return; }
-                NSDictionary *fields = @{ @"client_id": TBGoogleClientID, @"client_secret": secret, @"device_code": deviceCode,
-                                          @"grant_type": @"urn:ietf:params:oauth:grant-type:device_code" };
-                inner = [TBHTTP postForm:TBGoogleTokenURL fields:fields completion:^(id tokenJson, NSInteger tokenStatus, NSError *tokenError) {
-                    if (outer.isCancelled) return;
-                    TBAccount *s = weakSelf;
-                    NSDictionary *t = TBDict(tokenJson);
-                    NSString *code = TBStr(t[@"error"]);
-                    if (TBStr(t[@"access_token"]).length) {
-                        [s keepTokensFrom:t];
-                        TBLog(@"Google sign-in: signed in");
-                        [s notify];
-                        completion(nil);
-                        [s fetchProfile:^(NSError *e) { if (e) TBLog(@"Profile: %@", e.localizedDescription); }];
-                        [s syncSubscriptions:^(NSArray *channels, NSError *e) { if (e) TBLog(@"Subscriptions: %@", e.localizedDescription); }];
-                        return;
-                    }
-                    if ([code isEqualToString:@"authorization_pending"]) { if (strongPoll) strongPoll(interval); return; }
-                    if ([code isEqualToString:@"slow_down"]) { if (strongPoll) strongPoll(interval + 5); return; }
-                    if (!code.length && (tokenError.code == TBErrorNetwork || tokenError.code == TBErrorTimeout || tokenError.code == TBErrorConnectionLost)) {
-                        if (strongPoll) strongPoll(interval + 5);   // (a network hiccup: the code is still good)
-                        return;
-                    }
-                    completion([TBAccount errorFromOAuth:tokenJson status:tokenStatus fallback:tokenError]);
-                }];
-            });
-        };
-        weakPoll = poll;
-        outer.cancelBlock = ^{ [inner cancel]; poll = nil; };
-        poll(interval);
+        [s pollDeviceCode:deviceCode secret:secret interval:interval deadline:[NSDate dateWithTimeIntervalSinceNow:expires] after:interval task:outer completion:completion];
     }];
     return outer;
+}
+
+// One token request after `wait` seconds; while Google says the user has not confirmed yet, the next one follows
+// (a method rather than a block that calls itself: a weak reference to a block is not a thing to build on)
+- (void)pollDeviceCode:(NSString *)deviceCode secret:(NSString *)secret interval:(NSTimeInterval)interval deadline:(NSDate *)deadline
+                 after:(NSTimeInterval)wait task:(TBHTTPTask *)outer completion:(void (^)(NSError *error))completion
+{
+    __weak TBAccount *weakSelf = self;
+    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(wait * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+        TBAccount *s = weakSelf;
+        if (!s || outer.isCancelled) return;
+        if ([deadline timeIntervalSinceNow] < 0) { completion(TBMakeError(TBErrorAuth, L(@"The code expired. Try again."))); return; }
+        NSDictionary *fields = @{ @"client_id": TBGoogleClientID, @"client_secret": secret, @"device_code": deviceCode,
+                                  @"grant_type": @"urn:ietf:params:oauth:grant-type:device_code" };
+        s.signInRequest = [TBHTTP postForm:TBGoogleTokenURL fields:fields completion:^(id json, NSInteger status, NSError *error) {
+            TBAccount *account = weakSelf;
+            if (!account || outer.isCancelled) return;
+            account.signInRequest = nil;
+            NSDictionary *t = TBDict(json);
+            NSString *code = TBStr(t[@"error"]);
+            if (TBStr(t[@"access_token"]).length) {
+                [account keepTokensFrom:t];
+                TBLog(@"Google sign-in: signed in");
+                [account notify];
+                completion(nil);
+                [account fetchProfile:^(NSError *e) { if (e) TBLog(@"Profile: %@", e.localizedDescription); }];
+                [account syncSubscriptions:^(NSArray *channels, NSError *e) { if (e) TBLog(@"Subscriptions: %@", e.localizedDescription); }];
+                return;
+            }
+            BOOL hiccup = !code.length && (error.code == TBErrorNetwork || error.code == TBErrorTimeout || error.code == TBErrorConnectionLost);
+            if ([code isEqualToString:@"authorization_pending"] || [code isEqualToString:@"slow_down"] || hiccup) {
+                NSTimeInterval next = [code isEqualToString:@"authorization_pending"] ? interval : interval + 5;   // (slow_down, or a network hiccup: the code is still good)
+                [account pollDeviceCode:deviceCode secret:secret interval:interval deadline:deadline after:next task:outer completion:completion];
+                return;
+            }
+            completion([TBAccount errorFromOAuth:json status:status fallback:error]);
+        }];
+    });
 }
 
 - (void)signOut
@@ -352,48 +360,46 @@ static NSString *TBAPIThumbnail(NSDictionary *thumbnails)
 - (TBHTTPTask *)syncSubscriptions:(void (^)(NSArray *channels, NSError *error))completion
 {
     TBHTTPTask *outer = [[TBHTTPTask alloc] init];
-    __block TBHTTPTask *inner = nil;
-    outer.cancelBlock = ^{ [inner cancel]; };
-    NSMutableArray *channels = [NSMutableArray array];
-    NSMutableDictionary *ids = [NSMutableDictionary dictionary];
     __weak TBAccount *weakSelf = self;
-    __block void (^page)(NSString *) = nil;
-    __block __weak void (^weakPage)(NSString *) = nil;
-    page = ^(NSString *token) {
-        void (^strongPage)(NSString *) = weakPage;
-        NSMutableDictionary *query = [@{ @"part": @"snippet", @"mine": @"true", @"maxResults": @"50", @"order": @"alphabetical" } mutableCopy];
-        if (token.length) query[@"pageToken"] = token;
-        inner = [weakSelf api:@"GET" path:@"subscriptions" query:query body:nil completion:^(NSDictionary *json, NSError *error) {
-            if (outer.isCancelled) return;
-            if (error) { completion(nil, error); return; }
-            for (id item in TBArr(json[@"items"])) {
-                NSDictionary *d = TBDict(item), *snippet = TBDict(d[@"snippet"]);
-                TBChannel *c = [[TBChannel alloc] init];
-                c.channelId = TBStr(TBDict(snippet[@"resourceId"])[@"channelId"]);
-                if (!c.channelId.length) continue;
-                c.title = TBStr(snippet[@"title"]);
-                c.descriptionText = TBStr(snippet[@"description"]);
-                c.avatarURL = TBAPIThumbnail(TBDict(snippet[@"thumbnails"]));
-                c.subscribedAt = TBDateFromISO(TBStr(snippet[@"publishedAt"])) ?: [NSDate date];
-                [channels addObject:c];
-                NSString *subscriptionId = TBStr(d[@"id"]);
-                if (subscriptionId) ids[c.channelId] = subscriptionId;
-            }
-            NSString *next = TBStr(json[@"nextPageToken"]);
-            if (next.length && channels.count < 1000 && strongPage) { strongPage(next); return; }
-            TBAccount *s = weakSelf;
-            [s.subscriptionIds addEntriesFromDictionary:ids];
-            [channels sortUsingComparator:^NSComparisonResult(TBChannel *a, TBChannel *b) { return [b.subscribedAt compare:a.subscribedAt]; }];
-            [[TBLibrary shared] replaceSubscriptions:channels];
-            TBLog(@"Google account: %lu subscriptions", (unsigned long)channels.count);
-            [s notify];
-            completion(channels, nil);
-        }];
-    };
-    weakPage = page;
-    outer.cancelBlock = ^{ [inner cancel]; page = nil; };
-    page(nil);
+    outer.cancelBlock = ^{ [weakSelf.syncRequest cancel]; weakSelf.syncRequest = nil; };
+    [self fetchSubscriptionsPage:nil into:[NSMutableArray array] ids:[NSMutableDictionary dictionary] task:outer completion:completion];
     return outer;
+}
+
+// One page of the account's subscriptions; the next page follows until there is none (or a thousand channels)
+- (void)fetchSubscriptionsPage:(NSString *)token into:(NSMutableArray *)channels ids:(NSMutableDictionary *)ids task:(TBHTTPTask *)outer
+                    completion:(void (^)(NSArray *channels, NSError *error))completion
+{
+    __weak TBAccount *weakSelf = self;
+    NSMutableDictionary *query = [@{ @"part": @"snippet", @"mine": @"true", @"maxResults": @"50", @"order": @"alphabetical" } mutableCopy];
+    if (token.length) query[@"pageToken"] = token;
+    self.syncRequest = [self api:@"GET" path:@"subscriptions" query:query body:nil completion:^(NSDictionary *json, NSError *error) {
+        TBAccount *s = weakSelf;
+        if (!s || outer.isCancelled) return;
+        s.syncRequest = nil;
+        if (error) { completion(nil, error); return; }
+        for (id item in TBArr(json[@"items"])) {
+            NSDictionary *d = TBDict(item), *snippet = TBDict(d[@"snippet"]);
+            TBChannel *c = [[TBChannel alloc] init];
+            c.channelId = TBStr(TBDict(snippet[@"resourceId"])[@"channelId"]);
+            if (!c.channelId.length) continue;
+            c.title = TBStr(snippet[@"title"]);
+            c.descriptionText = TBStr(snippet[@"description"]);
+            c.avatarURL = TBAPIThumbnail(TBDict(snippet[@"thumbnails"]));
+            c.subscribedAt = TBDateFromISO(TBStr(snippet[@"publishedAt"])) ?: [NSDate date];
+            [channels addObject:c];
+            NSString *subscriptionId = TBStr(d[@"id"]);
+            if (subscriptionId) ids[c.channelId] = subscriptionId;
+        }
+        NSString *next = TBStr(json[@"nextPageToken"]);
+        if (next.length && channels.count < 1000) { [s fetchSubscriptionsPage:next into:channels ids:ids task:outer completion:completion]; return; }
+        [s.subscriptionIds addEntriesFromDictionary:ids];
+        [channels sortUsingComparator:^NSComparisonResult(TBChannel *a, TBChannel *b) { return [b.subscribedAt compare:a.subscribedAt]; }];
+        [[TBLibrary shared] replaceSubscriptions:channels];
+        TBLog(@"Google account: %lu subscriptions", (unsigned long)channels.count);
+        [s notify];
+        completion(channels, nil);
+    }];
 }
 
 - (TBHTTPTask *)subscribeTo:(TBChannel *)channel completion:(void (^)(NSError *error))completion
