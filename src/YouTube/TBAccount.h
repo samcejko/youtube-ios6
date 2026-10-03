@@ -22,6 +22,7 @@ extern NSString * const TBAccountDidChangeNotification;
 @property (nonatomic, copy) NSString *clientSecret;         // setting either posts the notification
 - (BOOL)usesOwnClientId;                                    // a client id other than the built-in default was entered
 - (BOOL)usesOwnClientSecret;                                // a client secret other than the built-in default was entered
+- (BOOL)usesCustomOAuthClient;                              // either a custom client ID or secret was configured
 - (BOOL)isSignedIn;
 @property (nonatomic, readonly, copy) NSString *channelTitle;   // the account's channel (after fetchProfile)
 @property (nonatomic, readonly, copy) NSString *channelId;

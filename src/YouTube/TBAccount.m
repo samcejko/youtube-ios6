@@ -134,6 +134,11 @@ static void TBKeychainWrite(NSDictionary *tokens)
     return self.storedClientSecret.length > 0;
 }
 
+- (BOOL)usesCustomOAuthClient
+{
+    return [self usesOwnClientId] || [self usesOwnClientSecret];
+}
+
 - (instancetype)init
 {
     self = [super init];
