@@ -43,6 +43,8 @@ typedef NS_ENUM(NSInteger, TBProxyEntryKind) {
 @property (nonatomic, strong) NSMutableArray *fileOrder;        // ids of file entries, oldest first
 @property (nonatomic, strong) NSMutableArray *playlistOrder;    // ids of directory and text entries, oldest first
 @property (nonatomic) NSUInteger nextId;
+@property (nonatomic, strong) NSMutableDictionary *servedCounts;   // content type -> @(requests)
+@property (nonatomic, strong) NSMutableDictionary *servedBytes;    // content type -> @(bytes)
 @end
 
 static NSString * const TBProxyPlaylistName = @"playlist.m3u8";
@@ -145,8 +147,30 @@ static NSString *TBResponseHead(NSInteger status, NSDictionary *headers, NSStrin
         _idsByURL = [NSMutableDictionary dictionary];
         _fileOrder = [NSMutableArray array];
         _playlistOrder = [NSMutableArray array];
+        _servedCounts = [NSMutableDictionary dictionary];
+        _servedBytes = [NSMutableDictionary dictionary];
     }
     return self;
+}
+
+- (void)countServed:(NSString *)contentType bytes:(NSUInteger)bytes
+{
+    NSString *key = contentType.length ? contentType : @"?";
+    @synchronized (self.servedCounts) {
+        if (bytes == 0) self.servedCounts[key] = @([self.servedCounts[key] unsignedIntegerValue] + 1);
+        else self.servedBytes[key] = @([self.servedBytes[key] unsignedLongLongValue] + bytes);
+    }
+}
+
+- (NSString *)statsDescription
+{
+    NSMutableArray *parts = [NSMutableArray array];
+    @synchronized (self.servedCounts) {
+        for (NSString *key in [[self.servedCounts allKeys] sortedArrayUsingSelector:@selector(compare:)]) {
+            [parts addObject:[NSString stringWithFormat:@"%@: %@ (%.1f MB)", key, self.servedCounts[key], [self.servedBytes[key] unsignedLongLongValue] / 1048576.0]];
+        }
+    }
+    return parts.count ? [parts componentsJoinedByString:@", "] : @"nothing served yet";
 }
 
 #pragma mark - Server
@@ -409,7 +433,11 @@ static BOOL TBProxyPortAnswers(uint16_t port)
     NSData *body = [text dataUsingEncoding:NSUTF8StringEncoding] ?: [NSData data];
     NSString *head = [NSString stringWithFormat:@"HTTP/1.1 200 OK\r\nContent-Type: application/vnd.apple.mpegurl\r\nContent-Length: %lu\r\n"
                                                  "Cache-Control: no-cache\r\nConnection: close\r\n\r\n", (unsigned long)body.length];
-    if (TBSendString(fd, head) && ![method isEqualToString:@"HEAD"]) TBSendAll(fd, body.bytes, body.length);
+    [self countServed:@"playlist" bytes:0];
+    if (TBSendString(fd, head) && ![method isEqualToString:@"HEAD"]) {
+        TBSendAll(fd, body.bytes, body.length);
+        [self countServed:@"playlist" bytes:body.length];
+    }
 }
 
 // One request of the player, through the app's network layer, on this thread: redirects followed here, the body
@@ -438,9 +466,11 @@ static BOOL TBProxyPortAnswers(uint16_t port)
         __block NSInteger pendingStatus = 200;
         __block NSDictionary *pendingHeaders = nil;
         __block BOOL pendingKeepLength = YES;
+        __block NSString *servedType = nil;
         NSMutableData *collected = [NSMutableData data];
         NSURL *current = url;
         __weak TBHTTPRequest *weakRequest = r;
+        __weak TBMediaProxy *weakSelf = self;
         r.onHeaders = ^(NSInteger status, NSDictionary *hdrs) {
             NSString *location = hdrs[@"location"];
             if (status >= 300 && status < 400 && status != 304 && location.length) {
@@ -461,6 +491,8 @@ static BOOL TBProxyPortAnswers(uint16_t port)
             }
             headSent = YES;
             NSString *contentType = status < 300 ? TBContentTypeForPath(current.path, hdrs[@"content-type"], nil) : hdrs[@"content-type"];
+            servedType = status < 300 ? contentType : [NSString stringWithFormat:@"HTTP %ld", (long)status];
+            [weakSelf countServed:servedType bytes:0];
             if (!TBSendString(fd, TBResponseHead(status, hdrs, contentType, keepLength))) { broken = YES; [weakRequest cancel]; }
         };
         r.onData = ^(NSData *data) {
@@ -469,9 +501,12 @@ static BOOL TBProxyPortAnswers(uint16_t port)
             if (!headSent && pendingHeaders) {
                 headSent = YES;
                 NSString *contentType = TBContentTypeForPath(current.path, pendingHeaders[@"content-type"], data);
+                servedType = contentType;
+                [weakSelf countServed:servedType bytes:0];
                 if (!TBSendString(fd, TBResponseHead(pendingStatus, pendingHeaders, contentType, pendingKeepLength))) { broken = YES; [weakRequest cancel]; return; }
             }
-            if (!TBSendAll(fd, data.bytes, data.length)) { broken = YES; [weakRequest cancel]; }
+            if (!TBSendAll(fd, data.bytes, data.length)) { broken = YES; [weakRequest cancel]; return; }
+            [weakSelf countServed:servedType bytes:data.length];
         };
         __block NSError *failure = nil;
         r.onComplete = ^(NSError *error) { failure = error; };

@@ -669,6 +669,28 @@ typedef NS_ENUM(NSInteger, TBWatchSection) {
     [self.player seekToTime:CMTimeMakeWithSeconds(MAX(0, seconds), 600)];
 }
 
+- (NSString *)playbackDebugDescription
+{
+    if (!self.item) return @"no item";
+    NSMutableArray *tracks = [NSMutableArray array];
+    for (AVPlayerItemTrack *t in self.item.tracks) {
+        [tracks addObject:[NSString stringWithFormat:@"%@%@", t.assetTrack.mediaType ?: @"?", t.enabled ? @"" : @"(off)"]];
+    }
+    NSMutableArray *ranges = [NSMutableArray array];
+    for (NSValue *v in self.item.loadedTimeRanges) {
+        CMTimeRange r = [v CMTimeRangeValue];
+        [ranges addObject:[NSString stringWithFormat:@"%.1f-%.1f", CMTimeGetSeconds(r.start), CMTimeGetSeconds(CMTimeRangeGetEnd(r))]];
+    }
+    static NSString * const statusNames[] = { @"unknown", @"ready", @"failed" };
+    NSInteger status = self.item.status;
+    return [NSString stringWithFormat:@"rate %.2f at %.1f/%.1f s, item %@%@, tracks [%@], buffered [%@], size %.0fx%.0f, empty %d keepUp %d, variant %@",
+            self.player.rate, CMTimeGetSeconds(self.player.currentTime), CMTimeGetSeconds(self.item.duration),
+            status >= 0 && status <= 2 ? statusNames[status] : @"?", self.item.error ? [NSString stringWithFormat:@" (%@)", self.item.error.localizedDescription] : @"",
+            [tracks componentsJoinedByString:@", "], [ranges componentsJoinedByString:@", "],
+            self.item.presentationSize.width, self.item.presentationSize.height,
+            self.item.playbackBufferEmpty, self.item.playbackLikelyToKeepUp, self.currentVariant ? [self.currentVariant title] : @"auto"];
+}
+
 #pragma mark - Captions
 
 - (void)loadCaptions

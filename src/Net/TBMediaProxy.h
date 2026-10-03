@@ -32,4 +32,8 @@
 // A new playback: forgets the ad state
 - (void)resetPlaybackState;
 
+// What was served since the start, by content type ("video/MP2T: 12 (4.1 MB), audio/aac: 12 (0.6 MB)") - for the
+// debug "stats" command: it tells whether the player fetches the sound rendition at all
+- (NSString *)statsDescription;
+
 @end

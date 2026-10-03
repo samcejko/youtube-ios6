@@ -13,5 +13,7 @@
 
 - (void)loadVideo:(TBVideo *)video;
 - (void)seekToSeconds:(NSTimeInterval)seconds;
+// The player's state in one line (rate, position, tracks, buffered ranges) for the debug "stats" command
+- (NSString *)playbackDebugDescription;
 
 @end

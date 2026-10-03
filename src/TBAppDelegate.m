@@ -165,6 +165,8 @@ static BOOL TBPressView(UIView *v, NSString *text)
         UIViewController *top = [TBNavigator presenterFrom:nil];
         TBLog(@"Windows: %lu, top controller: %@, proxy generation %ld, dark theme %d", (unsigned long)[UIApplication sharedApplication].windows.count,
               NSStringFromClass([top class]), (long)[TBMediaProxy shared].generation, [TBTheme shared].isDark);
+        TBLog(@"Proxy served: %@", [[TBMediaProxy shared] statsDescription]);
+        if ([top isKindOfClass:[TBWatchViewController class]]) TBLog(@"Player: %@", [(TBWatchViewController *)top playbackDebugDescription]);
         return YES;
     }
     if ([target isEqualToString:@"snapshot"]) {

@@ -38,7 +38,7 @@
 - (UIImage *)barBackgroundImage;            // 44 pt bar (chat input)
 - (UIImage *)textFieldBackgroundImage;
 - (UIImage *)buttonImageHighlighted:(BOOL)highlighted;              // grey glossy button
-- (UIImage *)accentButtonImageHighlighted:(BOOL)highlighted disabled:(BOOL)disabled;   // purple glossy button
+- (UIImage *)accentButtonImageHighlighted:(BOOL)highlighted disabled:(BOOL)disabled;   // red glossy button (Subscribe)
 - (UIImage *)redButtonImageHighlighted:(BOOL)highlighted;
 - (UIImage *)thumbnailPlaceholder;          // dark 16:9 box with a faint play sign
 - (UIImage *)boxArtPlaceholder;
