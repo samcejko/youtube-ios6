@@ -910,14 +910,50 @@ static void TBWalk(id node, NSMutableArray *items, NSMutableArray *continuations
                 if (completion) completion(response, channels, nil);
                 return;
             }
-            // Fallback for TV client: query FEchannels browse endpoint
-            [self authenticatedBrowse:@"FEchannels" params:nil continuation:nil completion:^(NSDictionary *chResp, NSArray *chItems, NSString *chCont, NSError *chErr) {
-                NSMutableArray *fallbackList = [NSMutableArray array];
-                for (id item in chItems) {
-                    if ([item isKindOfClass:[TBChannel class]]) [fallbackList addObject:item];
+            TBLog(@"authenticatedGuide (TV): 0 channels from guide, trying Web client guide...");
+            [self call:@"guide" body:@{} client:TBClientWeb token:token completion:^(NSDictionary *webResp, NSError *webErr) {
+                NSMutableArray *webEntries = [NSMutableArray array];
+                TBFindAll(webResp, @"guideEntryRenderer", webEntries, 0);
+                TBFindAll(webResp, @"guideItemRenderer", webEntries, 0);
+                for (NSDictionary *entry in webEntries) {
+                    NSString *browseId = TBBrowseIdIn(entry);
+                    if (![browseId hasPrefix:@"UC"] || [seen containsObject:browseId]) continue;
+                    [seen addObject:browseId];
+                    TBChannel *c = [[TBChannel alloc] init];
+                    c.channelId = browseId;
+                    c.title = TBText(entry[@"formattedTitle"]) ?: (TBText(entry[@"title"]) ?: TBText(entry[@"text"]));
+                    c.avatarURL = TBThumbnailURL(entry[@"thumbnail"] ?: TBFindFirst(entry, @"thumbnail"));
+                    [channels addObject:c];
                 }
-                TBLog(@"authenticatedGuide (FEchannels fallback): found %lu channels", (unsigned long)fallbackList.count);
-                if (completion) completion(chResp ?: response, fallbackList, chErr ?: error);
+                if (channels.count > 0) {
+                    TBLog(@"authenticatedGuide (Web client guide): found %lu channels", (unsigned long)channels.count);
+                    if (completion) completion(webResp, channels, nil);
+                    return;
+                }
+                TBLog(@"authenticatedGuide (Web guide): 0 channels, trying FEsubscriptions extract...");
+                [self authenticatedBrowse:@"FEsubscriptions" params:nil continuation:nil completion:^(NSDictionary *subResp, NSArray *subItems, NSString *subCont, NSError *subErr) {
+                    for (id it in subItems) {
+                        if ([it isKindOfClass:[TBChannel class]]) {
+                            TBChannel *c = (TBChannel *)it;
+                            if (c.channelId.length && ![seen containsObject:c.channelId]) {
+                                [seen addObject:c.channelId];
+                                [channels addObject:c];
+                            }
+                        } else if ([it isKindOfClass:[TBVideo class]]) {
+                            TBVideo *v = (TBVideo *)it;
+                            if (v.channelId.length && [v.channelId hasPrefix:@"UC"] && ![seen containsObject:v.channelId]) {
+                                [seen addObject:v.channelId];
+                                TBChannel *c = [[TBChannel alloc] init];
+                                c.channelId = v.channelId;
+                                c.title = v.channelName;
+                                c.avatarURL = v.channelAvatarURL;
+                                [channels addObject:c];
+                            }
+                        }
+                    }
+                    TBLog(@"authenticatedGuide (FEsubscriptions extract): found %lu channels", (unsigned long)channels.count);
+                    if (completion) completion(subResp ?: response, channels, subErr ?: error);
+                }];
             }];
         }];
     }];
