@@ -584,34 +584,45 @@ static BOOL TBProxyPortAnswers(uint16_t port)
 
 #pragma mark - Adaptive MP4 files
 
-// A byte range of the file, fetched on this thread
+// A byte range of the file, fetched on this thread (YouTube's servers redirect to another host now and then)
 - (NSData *)fetchRangeOf:(NSString *)url start:(long long)start end:(long long)end error:(NSString **)error
 {
-    TBHTTPRequest *r = [[TBHTTPRequest alloc] initWithMethod:@"GET" URL:[NSURL URLWithString:url]];
-    r.headers = @{ @"Accept": @"*/*", @"Range": [NSString stringWithFormat:@"bytes=%lld-%lld", start, end] };
-    r.verifyTLS = [TBSettings verifyTLS];
-    r.highPriority = YES;
-    r.noCompression = YES;
-    r.connectTimeout = 15;
-    r.readTimeout = 30;
-    __block NSError *failure = nil;
-    r.onComplete = ^(NSError *e) { failure = e; };
-    [r runSynchronously];
-    if (failure) { if (error) *error = failure.localizedDescription; return nil; }
-    if (r.statusCode != 206 && r.statusCode != 200) { if (error) *error = [NSString stringWithFormat:@"HTTP %ld", (long)r.statusCode]; return nil; }
-    NSData *body = r.responseBody;
-    long long wanted = end - start + 1;
-    if (r.statusCode == 200 && (long long)body.length > wanted) body = [body subdataWithRange:NSMakeRange((NSUInteger)start, (NSUInteger)wanted)];   // (a server that ignored the range)
-    if ((long long)body.length < wanted) { if (error) *error = [NSString stringWithFormat:@"short answer (%lu of %lld bytes)", (unsigned long)body.length, wanted]; return nil; }
-    return body;
+    NSURL *current = [NSURL URLWithString:url];
+    for (int hop = 0; hop < TBProxyMaxRedirects && current; hop++) {
+        TBHTTPRequest *r = [[TBHTTPRequest alloc] initWithMethod:@"GET" URL:current];
+        r.headers = @{ @"Accept": @"*/*", @"Range": [NSString stringWithFormat:@"bytes=%lld-%lld", start, end] };
+        r.verifyTLS = [TBSettings verifyTLS];
+        r.highPriority = YES;
+        r.noCompression = YES;
+        r.connectTimeout = 15;
+        r.readTimeout = 30;
+        __block NSError *failure = nil;
+        r.onComplete = ^(NSError *e) { failure = e; };
+        [r runSynchronously];
+        if (failure) { if (error) *error = failure.localizedDescription; return nil; }
+        NSInteger status = r.statusCode;
+        if (status >= 300 && status < 400 && status != 304) {
+            NSString *location = r.responseHeaders[@"location"];
+            current = location.length ? [[NSURL URLWithString:location relativeToURL:current] absoluteURL] : nil;
+            if (!current.host.length) { if (error) *error = @"redirect without a location"; return nil; }
+            continue;
+        }
+        if (status != 206 && status != 200) { if (error) *error = [NSString stringWithFormat:@"HTTP %ld", (long)status]; return nil; }
+        NSData *body = r.responseBody;
+        long long wanted = end - start + 1;
+        if (status == 200 && (long long)body.length > wanted) body = [body subdataWithRange:NSMakeRange((NSUInteger)start, (NSUInteger)wanted)];   // (a server that ignored the range)
+        if ((long long)body.length < wanted) { if (error) *error = [NSString stringWithFormat:@"short answer (%lu of %lld bytes)", (unsigned long)body.length, wanted]; return nil; }
+        return body;
+    }
+    if (error) *error = @"too many redirects";
+    return nil;
 }
 
-// The file's index, read once
+// The file's index, read once (a failed attempt is tried again on the next request)
 - (TBDashIndex *)indexForEntry:(TBProxyEntry *)entry error:(NSString **)error
 {
     @synchronized (entry) {
         if (entry.index) return entry.index;
-        if (entry.indexError) { if (error) *error = entry.indexError; return nil; }
         NSString *problem = nil;
         NSData *head = [self fetchRangeOf:entry.dash.url start:0 end:entry.dash.indexEnd error:&problem];
         TBDashIndex *index = head ? [TBDashIndex indexWithData:head format:entry.dash error:&problem] : nil;

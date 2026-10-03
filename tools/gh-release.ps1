@@ -36,7 +36,7 @@ $section = ''
 if ($changelog -match "(?s)## $([regex]::Escape($Version))[^\n]*\n(.*?)(\n## |\z)") { $section = $Matches[1].Trim() }
 # (ASCII only in this file: Windows PowerShell 5.1 reads a BOM-less script in the ANSI code page)
 $sums = $assets | ForEach-Object { "- ``$($_.Name)`` - SHA-256 ``$((Get-FileHash $_.FullName -Algorithm SHA256).Hash.ToLower())``" }
-$install = '**Installation (jailbroken iOS 6):** the IPA through `ipainstaller -f Tubie-{0}.ipa` (AppSync Unified), the DEB through `dpkg -i` followed by `su mobile -c uicache`. Both carry the same build; a login made with one survives switching to the other.' -f $Version
+$install = '**Installation (jailbroken iOS 6):** the IPA through `ipainstaller -f Tubie-{0}.ipa` (AppSync Unified), the DEB through `dpkg -i` followed by `su mobile -c uicache`. Both carry the same build; do not keep both installed at once.' -f $Version
 $notes = ($section, '', $install, '', '**Checksums**', ($sums -join "`n")) -join "`n"
 
 Write-Host "Release $tag of $Repo at $($Sha.Substring(0, [Math]::Min(7, $Sha.Length)))"

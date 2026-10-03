@@ -7,10 +7,11 @@ website no longer loads in its Safari; Tubie brings the content back in the look
 
 ## Features
 
-- Videos as adaptive HLS up to 1080p (what the device decodes; the iPad 2 does 1080p30), quality and speed choice,
-  resume where you left off, background sound, keep-screen-on
-- Shorts: a vertical player (swipe for the next one), the shorts of the channels you follow
-- Live streams
+- Videos with quality and speed choice, resume where you left off, background sound, keep-screen-on. Where YouTube
+  still offers an HLS stream the player switches between renditions up to 1080p (the iPad 2 decodes 1080p30);
+  everything else plays as the 360p MP4 - see "Quality" below
+- Shorts: a vertical player (swipe for the next one) in 720p, the shorts of the channels you follow
+- Live streams, adaptive up to 720p60
 - Channels (videos, shorts, live, playlists), playlists with continuous play, related videos
 - Search with suggestions and filters, recent searches
 - Comments and replies
@@ -25,10 +26,26 @@ Tested on an iPad 2 (iPad2,2) with iOS 6.1.3. The iPhone layout is implemented b
 ## How it works
 
 YouTube's InnerTube API is used the way YouTube's own apps use it, without an account: the web client for browsing
-and search, the iOS client for the streams of videos (HLS with H.264 video and a separate AAC sound track), the
-Android client for live streams and the plain MP4 of shorts. The media player of iOS 6 receives everything through a
-small local HTTP proxy, because it cannot speak modern TLS itself. There is no login: Google closed its device login
-to third parties, so subscriptions live on the device and are followed through the channels' RSS feeds.
+and search, the iOS client for the streams of videos, the Android client for live streams and the plain MP4. The
+media player of iOS 6 receives everything through a small local HTTP proxy, because it cannot speak modern TLS
+itself. There is no login: Google closed its device login to third parties, so subscriptions live on the device and
+are followed through the channels' RSS feeds.
+
+### Quality
+
+YouTube keeps every video as separate "adaptive" MP4 files per quality (DASH), a format the 2012 player does not
+know, and since 2025 it hands them to clients without a Google account for roughly the first minute of a video only
+(the rest needs a "PO token" that only Google's own apps can produce). Tubie therefore plays:
+
+- the adaptive **HLS** stream when YouTube offers one (H.264 video plus a separate AAC sound track; rare for new
+  uploads) - renditions up to 1080p, chosen automatically or by hand,
+- **shorts and clips up to a minute** through the proxy's own converter, which turns the adaptive MP4 fragments into
+  MPEG-TS and packed AAC on the fly - 720p (1080p is there too),
+- **longer videos as the 360p MP4** that YouTube still serves in full,
+- **live streams** as the Android client's HLS.
+
+The converter (`src/Net/TBRemux.m`) would serve every video in full HD the moment the first-minute limit is lifted or
+a PO token can be supplied; nothing else in the app would change.
 
 ## Installing on the device
 
@@ -55,13 +72,16 @@ URL scheme (other apps, or `uiopen` over SSH): `tubie:watch/<id>`, `tubie:short/
 Debugging over SSH: with a file named `debug` in the app's Documents folder (`Enable-TubieDebug` in `tools/ipad.ps1`),
 `uiopen tubie:snapshot` draws the app's windows and `tubie:screen` grabs the real screen (video included) into the
 app's `tmp/screen.png` (`Get-IPadScreen`), `tubie:press?n=0` presses a button of the alert or sheet on screen,
-`tubie:press?title=<text>` a button, segment, switch row or list row with that text, `tubie:tab?n=1` switches tabs,
-`tubie:back` pops the navigation stack, `tubie:seek?t=120` moves the open video and `tubie:stats` logs the memory in
-use. `/var/log/syslog` carries the app's log lines (`[Tubie]`, `Get-TubieLog`).
+`tubie:press?title=<text>` a button, segment, switch row or list row with that text (URL-encoded), `tubie:tab?n=1`
+switches tabs, `tubie:back` pops the navigation stack, `tubie:scroll?y=600` (or `y=end`) scrolls the list on screen,
+`tubie:seek?t=120` moves the open video, `tubie:stats` logs the memory in use, what the proxy served by content type
+and the player's state (tracks, buffered ranges), and `tubie:proxylog` makes the proxy log every request of the
+player. `/var/log/syslog` carries the app's log lines (`[Tubie]`, `Get-TubieLog`).
 
 ## Project layout
 
-- `src/Net` - TLS socket, HTTP/1.1 client, connection pool, image loader, the local media proxy
+- `src/Net` - TLS socket, HTTP/1.1 client, connection pool, image loader, the local media proxy and its
+  MP4-to-MPEG-TS converter
 - `src/YouTube` - the InnerTube client and parsers, playback sources, the local library (subscriptions, history,
   watch later, RSS feeds), SponsorBlock / Return YouTube Dislike / captions
 - `src/UI` - the screens; `TBTheme` draws the iOS 6 artwork in code
