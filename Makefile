@@ -27,6 +27,12 @@ Tubie_CFLAGS := -Isrc -Isrc/Net -Isrc/YouTube -Isrc/UI -Isrc/Util \
                    -Wno-deprecated-declarations -Wno-unknown-warning-option \
                    -Wno-nullability-completeness -Wno-nullability-completeness-on-arrays -Wno-error
 
+# The OAuth client secret of the Google sign-in (TV device flow) is not in the repository: CI takes it from the
+# repository secret TUBIE_GOOGLE_CLIENT_SECRET (Settings -> Secrets and variables -> Actions) and compiles it in as a
+# default; Settings -> Account can always override it. Without the variable the app builds and asks for the secret.
+TUBIE_GOOGLE_CLIENT_SECRET ?=
+Tubie_CFLAGS += -DTB_GOOGLE_CLIENT_SECRET=\"$(strip $(TUBIE_GOOGLE_CLIENT_SECRET))\"
+
 # Objective-C only: ARC; APIs newer than iOS 6.0 are warnings here and turned into errors for our own
 # sources by the pragma in src/TBCommon.h (vendored code only warns).
 Tubie_OBJCFLAGS := -fobjc-arc -Wunguarded-availability

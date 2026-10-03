@@ -150,6 +150,9 @@ jobs:
           fi
 
       - name: Build
+        env:
+          # the Google OAuth client secret of the sign-in (repository secret); the build works without it too
+          TUBIE_GOOGLE_CLIENT_SECRET: ${{ secrets.TUBIE_GOOGLE_CLIENT_SECRET }}
         run: |
           set -o pipefail
           export PATH="$THEOS/toolchain/linux/iphone/bin:$THEOS/bin:$PATH"
