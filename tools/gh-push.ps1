@@ -58,13 +58,14 @@ function Test-Ignored([string]$rel) {
     if ($r -like '.theos/*' -or $r -like 'obj/*' -or $r -like 'packages/*' -or $r -like 'vendor/mbedtls/*' -or $r -like '.git/*') { return $true }
     if ($r -like 'Resources/Icon*.png' -or $r -like 'Resources/Default*.png' -or $r -eq 'Resources/cacert.pem' -or $r -like 'Resources/licenses/*') { return $true }
     if ($r -like '*.ipa' -or $r -like '*.deb' -or $r -like '*.DS_Store' -or $r -like '*.log') { return $true }
-    # Local settings with the token, wherever they are
-    if (($r -split '/')[-1] -eq 'local.json') { return $true }
+    # Local settings with the token, wherever they are; .env files of any name never leave the machine either
+    $name = ($r -split '/')[-1]
+    if ($name -eq 'local.json' -or $name -eq '.env' -or $name -like '*.env' -or $name -like '.env.*') { return $true }
     return $false
 }
 
-# GitHub and OpenRouter tokens, private keys. Checked on every file before anything is uploaded.
-$SecretPattern = 'github_pat_[A-Za-z0-9_]{30,}|gh[pousr]_[A-Za-z0-9]{36,}|sk-or-v1-[0-9a-f]{32,}|-----BEGIN [A-Z ]*PRIVATE KEY-----'
+# GitHub, OpenRouter and Google tokens, private keys. Checked on every file before anything is uploaded.
+$SecretPattern = 'github_pat_[A-Za-z0-9_]{30,}|gh[pousr]_[A-Za-z0-9]{36,}|sk-or-v1-[0-9a-f]{32,}|GOCSPX-[A-Za-z0-9_-]{20,}|ya29\.[A-Za-z0-9_-]{30,}|-----BEGIN [A-Z ]*PRIVATE KEY-----'
 
 function Get-GitBlobSha([byte[]]$bytes) {
     $header = [Text.Encoding]::ASCII.GetBytes("blob $($bytes.Length)`0")
