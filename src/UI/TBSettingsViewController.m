@@ -1,5 +1,7 @@
 #import "TBSettingsViewController.h"
 #import "TBChoiceViewController.h"
+#import "TBGoogleLoginViewController.h"
+#import "TBAccount.h"
 #import "TBExtras.h"
 #import "TBLibrary.h"
 #import "TBSettings.h"
@@ -11,7 +13,8 @@
 #import "TBCommon.h"
 
 typedef NS_ENUM(NSInteger, TBSettingsSection) {
-    TBSectionAppearance = 0,
+    TBSectionAccount = 0,
+    TBSectionAppearance,
     TBSectionPlayback,
     TBSectionSponsorBlock,
     TBSectionCaptions,
@@ -63,10 +66,11 @@ typedef NS_ENUM(NSInteger, TBSettingsSection) {
 }
 @end
 
-@interface TBSettingsViewController ()
+@interface TBSettingsViewController () <UIAlertViewDelegate>
 @property (nonatomic, copy) NSString *cacheSizeText;
 @property (nonatomic, copy) NSString *connectionTestText;
 @property (nonatomic, strong) TBHTTPTask *testTask;
+@property (nonatomic) BOOL signInAfterSecret;   // the secret was asked for on the way to signing in
 @end
 
 @implementation TBSettingsViewController
@@ -88,6 +92,12 @@ typedef NS_ENUM(NSInteger, TBSettingsSection) {
 {
     [super viewDidLoad];
     [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(applyTheme) name:TBThemeDidChangeNotification object:nil];
+    [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(accountChanged) name:TBAccountDidChangeNotification object:nil];
+}
+
+- (void)accountChanged
+{
+    [self.tableView reloadData];
 }
 
 - (void)viewWillAppear:(BOOL)animated
@@ -157,6 +167,7 @@ typedef NS_ENUM(NSInteger, TBSettingsSection) {
 - (NSInteger)tableView:(UITableView *)tableView numberOfRowsInSection:(NSInteger)section
 {
     switch ((TBSettingsSection)section) {
+        case TBSectionAccount: return 2;
         case TBSectionPlayback: return 5;
         case TBSectionSponsorBlock: return 2;
         case TBSectionCaptions: return 2;
@@ -172,6 +183,7 @@ typedef NS_ENUM(NSInteger, TBSettingsSection) {
 - (NSString *)tableView:(UITableView *)tableView titleForHeaderInSection:(NSInteger)section
 {
     switch ((TBSettingsSection)section) {
+        case TBSectionAccount: return L(@"Account");
         case TBSectionPlayback: return L(@"Playback");
         case TBSectionSponsorBlock: return @"SponsorBlock";
         case TBSectionCaptions: return L(@"Captions");
@@ -187,6 +199,9 @@ typedef NS_ENUM(NSInteger, TBSettingsSection) {
 - (NSString *)tableView:(UITableView *)tableView titleForFooterInSection:(NSInteger)section
 {
     switch ((TBSettingsSection)section) {
+        case TBSectionAccount: return [[TBAccount shared] isSignedIn]
+            ? L(@"Subscriptions and likes are linked to the account. The watch history and \"watch later\" stay on this device: YouTube's API does not offer them.")
+            : L(@"Sign in with a code at google.com/device, as a TV does. The app's Google OAuth client needs its secret entered once (from the author's Google Cloud project).");
         case TBSectionPlayback: return L(@"This device decodes H.264 up to 1080p at 30 frames per second; renditions beyond that are left out of \"Automatic\". \"MP4 only\" plays the plain 360p file instead of the adaptive stream.");
         case TBSectionSponsorBlock: return L(@"Skips the parts of videos the SponsorBlock community marked (sponsor.ajay.app).");
         case TBSectionContent: return L(@"The language of titles and the region of the explore pages, as YouTube offers them.");
@@ -214,6 +229,26 @@ typedef NS_ENUM(NSInteger, TBSettingsSection) {
     cell.selectionStyle = UITableViewCellSelectionStyleBlue;
 
     switch ((TBSettingsSection)sec) {
+        case TBSectionAccount: {
+            TBAccount *account = [TBAccount shared];
+            if (account.isSignedIn) {
+                if (row == 0) {
+                    cell.textLabel.text = account.channelTitle.length ? account.channelTitle : L(@"Google account");
+                    cell.detailTextLabel.text = account.handle ?: @"";
+                    cell.selectionStyle = UITableViewCellSelectionStyleNone;
+                } else {
+                    cell.textLabel.text = L(@"Sign out");
+                    cell.textLabel.textColor = [UIColor colorWithRed:0.75 green:0.1 blue:0.1 alpha:1];
+                }
+            } else if (row == 0) {
+                cell.textLabel.text = L(@"Sign in with Google");
+                cell.accessoryType = UITableViewCellAccessoryDisclosureIndicator;
+            } else {
+                cell.textLabel.text = L(@"Google client secret");
+                cell.detailTextLabel.text = [TBAccount isConfigured] ? L(@"Set") : L(@"Not set");
+            }
+            break;
+        }
         case TBSectionPlayback:
             if (row == 0) {
                 cell.textLabel.text = L(@"Quality");
@@ -319,10 +354,40 @@ typedef NS_ENUM(NSInteger, TBSettingsSection) {
             break;
         default: break;
     }
-    UIColor *keep = (sec == TBSectionPrivacy && row == 2) ? cell.textLabel.textColor : nil;
+    UIColor *keep = ((sec == TBSectionPrivacy && row == 2) || (sec == TBSectionAccount && row == 1 && [[TBAccount shared] isSignedIn])) ? cell.textLabel.textColor : nil;
     [t styleCell:cell];
     if (keep) cell.textLabel.textColor = keep;
     return cell;
+}
+
+#pragma mark - Account
+
+- (void)askForClientSecret
+{
+    UIAlertView *alert = [[UIAlertView alloc] initWithTitle:L(@"Google client secret") message:L(@"Paste the client secret (GOCSPX-…)") delegate:self
+                                          cancelButtonTitle:L(@"Cancel") otherButtonTitles:L(@"OK"), nil];
+    alert.alertViewStyle = UIAlertViewStylePlainTextInput;
+    UITextField *field = [alert textFieldAtIndex:0];
+    field.autocapitalizationType = UITextAutocapitalizationTypeNone;
+    field.autocorrectionType = UITextAutocorrectionTypeNo;
+    field.secureTextEntry = YES;
+    alert.tag = 71;
+    [alert show];
+}
+
+- (void)alertView:(UIAlertView *)alertView clickedButtonAtIndex:(NSInteger)buttonIndex
+{
+    if (alertView.tag == 71) {
+        if (buttonIndex == alertView.cancelButtonIndex) { self.signInAfterSecret = NO; return; }
+        [TBAccount shared].clientSecret = [alertView textFieldAtIndex:0].text;
+        [self.tableView reloadData];
+        if (self.signInAfterSecret && [TBAccount isConfigured]) {
+            self.signInAfterSecret = NO;
+            [self.navigationController pushViewController:[[TBGoogleLoginViewController alloc] init] animated:YES];
+        }
+    } else if (alertView.tag == 72) {
+        if (buttonIndex != alertView.cancelButtonIndex) [[TBAccount shared] signOut];
+    }
 }
 
 #pragma mark - Controls
@@ -369,6 +434,24 @@ typedef NS_ENUM(NSInteger, TBSettingsSection) {
 {
     [tableView deselectRowAtIndexPath:indexPath animated:YES];
     NSInteger sec = indexPath.section, row = indexPath.row;
+    if (sec == TBSectionAccount) {
+        TBAccount *account = [TBAccount shared];
+        if (account.isSignedIn) {
+            if (row == 1) {
+                UIAlertView *alert = [[UIAlertView alloc] initWithTitle:L(@"Sign out of the Google account?") message:nil delegate:self
+                                                      cancelButtonTitle:L(@"Cancel") otherButtonTitles:L(@"Sign out"), nil];
+                alert.tag = 72;
+                [alert show];
+            }
+        } else if (row == 0) {
+            if ([TBAccount isConfigured]) [self.navigationController pushViewController:[[TBGoogleLoginViewController alloc] init] animated:YES];
+            else { self.signInAfterSecret = YES; [self askForClientSecret]; }
+        } else {
+            self.signInAfterSecret = NO;
+            [self askForClientSecret];
+        }
+        return;
+    }
     if (sec == TBSectionPlayback && row == 0) {
         NSArray *keys = [TBSettingsViewController qualityKeys];
         NSMutableArray *titles = [NSMutableArray array];

@@ -1,7 +1,9 @@
 #import "TBSubscriptionsViewController.h"
 #import "TBNavigator.h"
 #import "TBLibrary.h"
+#import "TBAccount.h"
 #import "TBTheme.h"
+#import "TBUtils.h"
 #import "TBCommon.h"
 
 @interface TBSubscriptionsViewController ()
@@ -40,12 +42,28 @@
 
 - (void)updateEmptyText
 {
-    self.emptyText = [[TBLibrary shared] subscriptions].count ? L(@"The channels you follow have not published anything.") : L(@"Open a channel and tap Subscribe: its new videos gather here, without any account.");
+    if ([[TBLibrary shared] subscriptions].count) self.emptyText = L(@"The channels you follow have not published anything.");
+    else self.emptyText = [[TBAccount shared] isSignedIn] ? L(@"Your account follows no channels yet.") : L(@"Open a channel and tap Subscribe: its new videos gather here, without any account.");
 }
 
 - (void)reload
 {
     self.forceNext = YES;
+    [self updateEmptyText];
+    if ([[TBAccount shared] isSignedIn]) {
+        // a pull brings the account's subscriptions up to date first, the feed follows
+        __weak TBSubscriptionsViewController *weakSelf = self;
+        [[TBAccount shared] syncSubscriptions:^(NSArray *channels, NSError *error) {
+            if (error) TBLog(@"Subscriptions: %@", error.localizedDescription);
+            [weakSelf reloadFeed];
+        }];
+        return;
+    }
+    [super reload];
+}
+
+- (void)reloadFeed
+{
     [self updateEmptyText];
     [super reload];
 }
@@ -64,7 +82,17 @@
     [grid replaceItems:[[TBLibrary shared] subscriptions]];
     __weak TBGridViewController *weakGrid = grid;
     grid.onRemoveItem = ^(id item) {
-        if ([item isKindOfClass:[TBChannel class]]) [[TBLibrary shared] unsubscribe:[(TBChannel *)item channelId]];
+        if (![item isKindOfClass:[TBChannel class]]) return;
+        NSString *channelId = [(TBChannel *)item channelId];
+        if ([[TBAccount shared] isSignedIn]) {
+            [[TBAccount shared] unsubscribeFrom:channelId completion:^(NSError *error) {
+                if (error) { [TBUtils alertWithTitle:L(@"Subscriptions") message:error.localizedDescription]; return; }
+                [[TBLibrary shared] unsubscribe:channelId];
+                [weakGrid replaceItems:[[TBLibrary shared] subscriptions]];
+            }];
+            return;
+        }
+        [[TBLibrary shared] unsubscribe:channelId];
         [weakGrid replaceItems:[[TBLibrary shared] subscriptions]];
     };
     [self.navigationController pushViewController:grid animated:YES];

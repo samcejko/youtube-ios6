@@ -13,6 +13,7 @@
 - (BOOL)isSubscribed:(NSString *)channelId;
 - (void)subscribe:(TBChannel *)channel;
 - (void)unsubscribe:(NSString *)channelId;
+- (void)replaceSubscriptions:(NSArray *)channels;             // the account's list takes the place of the local one
 
 // The subscriptions feed: the latest videos of every subscribed channel (YouTube's RSS feeds), newest first.
 // Cached for a few minutes; `force` asks again.

@@ -197,6 +197,16 @@ static const NSTimeInterval TBFeedCacheSeconds = 300;
     [self notify];
 }
 
+- (void)replaceSubscriptions:(NSArray *)channels
+{
+    NSMutableArray *list = [NSMutableArray array];
+    for (TBChannel *c in channels) if (c.channelId.length) [list addObject:[TBChannel channelFromDictionary:[c dictionary]]];
+    [self.subscriptionList setArray:list];
+    [self saveList:self.subscriptionList as:@"subscriptions"];
+    self.feedLoadedAt = nil;
+    [self notify];
+}
+
 #pragma mark Feed
 
 - (NSArray *)cachedFeed { return self.feed; }

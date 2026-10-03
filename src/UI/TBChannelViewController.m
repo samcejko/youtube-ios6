@@ -1,6 +1,7 @@
 #import "TBChannelViewController.h"
 #import "TBInnertube.h"
 #import "TBLibrary.h"
+#import "TBAccount.h"
 #import "TBImageLoader.h"
 #import "TBTheme.h"
 #import "TBUtils.h"
@@ -10,6 +11,7 @@
 @interface TBChannelViewController ()
 @property (nonatomic, strong) TBChannel *channel;
 @property (nonatomic, strong) TBHTTPTask *channelTask;
+@property (nonatomic, strong) TBHTTPTask *accountTask;
 @property (nonatomic, strong) UIView *header;
 @property (nonatomic, strong) TBImageView *banner;
 @property (nonatomic, strong) TBImageView *avatar;
@@ -38,6 +40,7 @@
 - (void)dealloc
 {
     [_channelTask cancel];
+    [_accountTask cancel];
 }
 
 - (void)viewDidLoad
@@ -254,8 +257,24 @@
 - (void)subscribeTapped
 {
     TBLibrary *library = [TBLibrary shared];
-    if ([library isSubscribed:self.channel.channelId]) [library unsubscribe:self.channel.channelId];
-    else [library subscribe:self.channel];
+    TBChannel *channel = self.channel;
+    BOOL subscribed = [library isSubscribed:channel.channelId];
+    if ([[TBAccount shared] isSignedIn]) {
+        __weak TBChannelViewController *weakSelf = self;
+        self.subscribeButton.enabled = NO;
+        void (^done)(NSError *) = ^(NSError *error) {
+            TBChannelViewController *s = weakSelf;
+            s.subscribeButton.enabled = YES;
+            if (error) { [TBUtils alertWithTitle:L(@"Subscriptions") message:error.localizedDescription]; return; }
+            if (subscribed) [library unsubscribe:channel.channelId]; else [library subscribe:channel];
+            [s updateSubscribeButton];
+        };
+        [self.accountTask cancel];
+        self.accountTask = subscribed ? [[TBAccount shared] unsubscribeFrom:channel.channelId completion:done] : [[TBAccount shared] subscribeTo:channel completion:done];
+        return;
+    }
+    if (subscribed) [library unsubscribe:channel.channelId];
+    else [library subscribe:channel];
     [self updateSubscribeButton];
 }
 

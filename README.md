@@ -16,6 +16,8 @@ website no longer loads in its Safari; Tubie brings the content back in the look
 - Search with suggestions and filters, recent searches
 - Comments and replies
 - Subscriptions, watch history and "watch later" - kept on the device, no Google account needed
+- Optional Google account (signed in with a code at google.com/device, as a TV does): the account's subscriptions,
+  likes and playlists through the YouTube Data API - see "Account" below
 - SponsorBlock (skips sponsor segments and more; categories configurable), captions (also auto-generated),
   Return YouTube Dislike counts
 - Light and dark theme in the iOS 6 style, English and Czech
@@ -46,6 +48,18 @@ know, and since 2025 it hands them to clients without a Google account for rough
 
 The converter (`src/Net/TBRemux.m`) would serve every video in full HD the moment the first-minute limit is lifted or
 a PO token can be supplied; nothing else in the app would change.
+
+### Account
+
+Google's sign-in page does not work on the iOS 6 engine and Google closed its TV sign-in to third-party YouTube
+clients, so Tubie uses the official way left: an OAuth client of the "TVs and Limited Input devices" kind and the
+**YouTube Data API v3**. Settings → Account shows a code, you confirm it at google.com/device on any other device,
+and the tokens stay in the device's keychain. The device flow also requires the OAuth client's secret; it is not in
+this repository or in the binary - Settings asks for it once (the author hands it out on request) and keeps it in the
+keychain too. With the account: subscriptions (synced both ways), likes and dislikes, liked videos and own playlists.
+Not with it: the watch history, "watch later" and the personalised home page, which the Data API does not expose -
+those stay local. The API has a daily quota of 10 000 units per project; browsing costs 1 unit per page, a like or a
+subscription 50.
 
 ## Installing on the device
 

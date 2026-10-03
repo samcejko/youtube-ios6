@@ -10,3 +10,4 @@ Resources/cacert.pem
 *.deb
 .DS_Store
 local.json
+.env

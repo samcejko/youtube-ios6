@@ -7,6 +7,7 @@
 #import "TBPlayback.h"
 #import "TBExtras.h"
 #import "TBLibrary.h"
+#import "TBAccount.h"
 #import "TBMediaProxy.h"
 #import "TBImageLoader.h"
 #import "TBSettings.h"
@@ -121,7 +122,8 @@ typedef NS_ENUM(NSInteger, TBWatchSection) {
 @property (nonatomic, strong) NSArray *sponsorSegments;
 @property (nonatomic, strong) NSArray *captionCues;
 @property (nonatomic, strong) TBCaptionTrack *captionTrack;
-@property (nonatomic, strong) TBHTTPTask *loadTask, *infoTask, *votesTask, *sponsorTask, *captionsTask;
+@property (nonatomic, strong) TBHTTPTask *loadTask, *infoTask, *votesTask, *sponsorTask, *captionsTask, *ratingTask, *accountTask;
+@property (nonatomic, copy) NSString *rating;    // the account's "like" / "dislike" / "none" for this video
 
 @property (nonatomic, strong) AVPlayer *player;
 @property (nonatomic, strong) AVPlayerItem *item;
@@ -396,6 +398,16 @@ typedef NS_ENUM(NSInteger, TBWatchSection) {
             [s.tableView reloadRowsAtIndexPaths:@[ [NSIndexPath indexPathForRow:1 inSection:TBWatchSectionInfo] ] withRowAnimation:UITableViewRowAnimationNone];
         }];
     }
+    [self.ratingTask cancel];
+    self.rating = nil;
+    if ([[TBAccount shared] isSignedIn]) {
+        self.ratingTask = [[TBAccount shared] ratingOfVideo:videoId completion:^(NSString *rating, NSError *error) {
+            TBWatchViewController *s = weakSelf;
+            if (!s || ![s.video.videoId isEqualToString:videoId]) return;
+            s.ratingTask = nil;
+            if (rating) { s.rating = rating; [s.tableView reloadRowsAtIndexPaths:@[ [NSIndexPath indexPathForRow:1 inSection:TBWatchSectionInfo] ] withRowAnimation:UITableViewRowAnimationNone]; }
+        }];
+    }
     [self.sponsorTask cancel];
     self.sponsorTask = [TBSponsorBlock segmentsForVideo:videoId completion:^(NSArray *segments, NSError *error) {
         TBWatchViewController *s = weakSelf;
@@ -510,6 +522,8 @@ typedef NS_ENUM(NSInteger, TBWatchSection) {
     [self.votesTask cancel]; self.votesTask = nil;
     [self.sponsorTask cancel]; self.sponsorTask = nil;
     [self.captionsTask cancel]; self.captionsTask = nil;
+    [self.ratingTask cancel]; self.ratingTask = nil;
+    [self.accountTask cancel]; self.accountTask = nil;
     [self.tickTimer invalidate]; self.tickTimer = nil;
     [self rememberPosition];
     [self.player pause];
@@ -964,6 +978,23 @@ typedef NS_ENUM(NSInteger, TBWatchSection) {
             if (self.wantsToPlay && self.itemReady) self.player.rate = self.playbackRate;
             [self.tableView reloadData];
         }
+    } else if (kind == 5) {
+        // the account's rating
+        NSString *rating = buttonIndex == 0 ? @"like" : (buttonIndex == 1 ? @"dislike" : @"none");
+        if (buttonIndex > 2) return;
+        NSString *videoId = self.video.videoId;
+        __weak TBWatchViewController *weakSelf = self;
+        [self.accountTask cancel];
+        self.accountTask = [[TBAccount shared] rateVideo:videoId rating:rating completion:^(NSError *error) {
+            TBWatchViewController *s = weakSelf;
+            if (!s) return;
+            s.accountTask = nil;
+            if (error) { [TBUtils alertWithTitle:L(@"Rating") message:error.localizedDescription]; return; }
+            if ([s.video.videoId isEqualToString:videoId]) {
+                s.rating = rating;
+                [s.tableView reloadRowsAtIndexPaths:@[ [NSIndexPath indexPathForRow:1 inSection:TBWatchSectionInfo] ] withRowAnimation:UITableViewRowAnimationNone];
+            }
+        }];
     } else if (kind == 4) {
         // captions
         if (buttonIndex == 0) { [TBSettings setCaptionsEnabled:NO]; [self selectCaptionTrack:nil]; return; }
@@ -982,7 +1013,18 @@ typedef NS_ENUM(NSInteger, TBWatchSection) {
 - (void)actionTapped:(UIButton *)button
 {
     switch (button.tag) {
-        case 0: {   // like / dislike counts: nothing to do without an account
+        case 0: {   // like / dislike: the account rates; without one the counts are all there is
+            if ([[TBAccount shared] isSignedIn]) {
+                UIActionSheet *sheet = [[UIActionSheet alloc] initWithTitle:L(@"Rating") delegate:self cancelButtonTitle:nil destructiveButtonTitle:nil otherButtonTitles:nil];
+                [sheet addButtonWithTitle:[NSString stringWithFormat:@"👍 %@%@", L(@"Like"), [self.rating isEqualToString:@"like"] ? @" ✓" : @""]];
+                [sheet addButtonWithTitle:[NSString stringWithFormat:@"👎 %@%@", L(@"Dislike"), [self.rating isEqualToString:@"dislike"] ? @" ✓" : @""]];
+                [sheet addButtonWithTitle:L(@"Remove rating")];
+                sheet.cancelButtonIndex = [sheet addButtonWithTitle:L(@"Cancel")];
+                self.pendingSheet = 5;
+                if (TBIsPad()) [sheet showFromRect:button.bounds inView:button animated:YES];
+                else [sheet showInView:self.view];
+                break;
+            }
             NSString *text = self.votes ? [NSString stringWithFormat:L(@"%@ likes, %@ dislikes (Return YouTube Dislike)"), [TBUtils formatCount:(NSInteger)MIN(self.votes.likes, (long long)NSIntegerMax)], [TBUtils formatCount:(NSInteger)MIN(self.votes.dislikes, (long long)NSIntegerMax)]]
                                           : L(@"Liking needs a Google account, which the app does not use.");
             [TBUtils alertWithTitle:L(@"Rating") message:text];
@@ -1040,7 +1082,20 @@ typedef NS_ENUM(NSInteger, TBWatchSection) {
     }
     if (!channel.channelId.length) return;
     TBLibrary *library = [TBLibrary shared];
-    if ([library isSubscribed:channel.channelId]) [library unsubscribe:channel.channelId];
+    BOOL subscribed = [library isSubscribed:channel.channelId];
+    if ([[TBAccount shared] isSignedIn]) {
+        // the account first; the library follows when YouTube agreed
+        __weak TBWatchViewController *weakSelf = self;
+        void (^done)(NSError *) = ^(NSError *error) {
+            if (error) { [TBUtils alertWithTitle:L(@"Subscriptions") message:error.localizedDescription]; return; }
+            if (subscribed) [library unsubscribe:channel.channelId]; else [library subscribe:channel];
+            [weakSelf.tableView reloadData];
+        };
+        [self.accountTask cancel];
+        self.accountTask = subscribed ? [[TBAccount shared] unsubscribeFrom:channel.channelId completion:done] : [[TBAccount shared] subscribeTo:channel completion:done];
+        return;
+    }
+    if (subscribed) [library unsubscribe:channel.channelId];
     else [library subscribe:channel];
     [self.tableView reloadData];
 }
@@ -1138,6 +1193,8 @@ typedef NS_ENUM(NSInteger, TBWatchSection) {
             NSString *likes = self.votes ? [TBUtils formatCount:(NSInteger)MIN(self.votes.likes, (long long)NSIntegerMax)] : (self.info.likesText ?: @"–");
             NSString *dislikes = self.votes && [TBSettings showDislikes] ? [TBUtils formatCount:(NSInteger)MIN(self.votes.dislikes, (long long)NSIntegerMax)] : nil;
             NSString *rating = dislikes ? [NSString stringWithFormat:@"👍 %@  👎 %@", likes, dislikes] : [NSString stringWithFormat:@"👍 %@", likes];
+            if ([self.rating isEqualToString:@"like"]) rating = [NSString stringWithFormat:@"👍 ✓ %@", likes];
+            else if ([self.rating isEqualToString:@"dislike"]) rating = [NSString stringWithFormat:@"👎 ✓ %@", dislikes ?: @""];
             BOOL later = [[TBLibrary shared] isInWatchLater:self.video.videoId];
             NSArray *titles = @[ rating, later ? L(@"✓ Later") : L(@"Watch later"), self.captionTrack ? L(@"CC ✓") : L(@"CC"),
                                  self.source.isLive ? L(@"Live") : [NSString stringWithFormat:@"%g×", self.playbackRate] ];
