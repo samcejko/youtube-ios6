@@ -1295,15 +1295,17 @@ static NSString *TBGenerateCPN(void)
                 return;
             }
             [self call:@"player" body:body client:client token:token completion:^(NSDictionary *response, NSError *error) {
-                if (error && !response) {
-                    // Fallback to anonymous player call so playback never fails
+                TBPlayerInfo *info = response ? [self playerInfoFromResponse:response videoId:videoId] : nil;
+                if ((error && !response) || (info && !info.isPlayable)) {
+                    // Fallback to anonymous player call so playback never fails (e.g. if token causes unplayable response)
                     [self call:@"player" body:body client:client completion:^(NSDictionary *anonResp, NSError *anonErr) {
-                        if (anonErr) { completion(nil, anonErr); return; }
-                        completion([self playerInfoFromResponse:anonResp videoId:videoId], nil);
+                        if (anonErr) { completion(info, anonErr); return; }
+                        TBPlayerInfo *anonInfo = [self playerInfoFromResponse:anonResp videoId:videoId];
+                        completion(anonInfo, nil);
                     }];
                     return;
                 }
-                completion([self playerInfoFromResponse:response videoId:videoId], nil);
+                completion(info, nil);
             }];
         }];
     }
@@ -1318,7 +1320,8 @@ static NSString *TBGenerateCPN(void)
     if (!info.playbackUrl.length || ![[TBAccount shared] isSignedIn]) return;
     [[TBAccount shared] withAccessToken:^(NSString *token, NSError *error) {
         if (!token.length) return;
-        NSString *url = [NSString stringWithFormat:@"%@&cpn=%@", info.playbackUrl, info.cpn ?: @""];
+        NSMutableString *url = [NSMutableString stringWithFormat:@"%@&cpn=%@&ns=yt&docid=%@", info.playbackUrl, info.cpn ?: @"", info.videoId ?: @""];
+        [url appendString:@"&el=detailpage"];
         NSDictionary *headers = @{
             @"Authorization": [NSString stringWithFormat:@"Bearer %@", token],
             @"User-Agent": [self userAgentForClient:TBClientIOS]
@@ -1335,8 +1338,12 @@ static NSString *TBGenerateCPN(void)
     [[TBAccount shared] withAccessToken:^(NSString *token, NSError *error) {
         if (!token.length) return;
         NSString *state = isFinished ? @"completed" : (isPaused ? @"paused" : @"playing");
-        NSString *url = [NSString stringWithFormat:@"%@&cpn=%@&cmt=%.1f&state=%@&ns=yt&docid=%@",
+        NSMutableString *url = [NSMutableString stringWithFormat:@"%@&cpn=%@&cmt=%.1f&state=%@&ns=yt&docid=%@",
                          info.watchtimeUrl, info.cpn ?: @"", position, state, info.videoId ?: @""];
+        if (info.lengthSeconds > 0) {
+            [url appendFormat:@"&len=%.1f", info.lengthSeconds];
+        }
+        [url appendString:@"&el=detailpage"];
         NSDictionary *headers = @{
             @"Authorization": [NSString stringWithFormat:@"Bearer %@", token],
             @"User-Agent": [self userAgentForClient:TBClientIOS]
