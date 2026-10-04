@@ -5,6 +5,7 @@
 #import "TBTheme.h"
 #import "TBUtils.h"
 #import "TBCommon.h"
+#import "TBInnertube.h"
 #import <AVFoundation/AVFoundation.h>
 
 @implementation TBPlaybackSession
@@ -251,6 +252,9 @@
     if (pos > 0 && !isnan(pos)) {
         [TBSettings setResumePosition:pos forVideo:videoId];
         [[TBLibrary shared] updatePosition:pos forVideo:videoId];
+        if (self.session.source.info) {
+            [TBInnertube reportWatchtime:self.session.source.info position:pos isPaused:(p.rate < 0.01) isFinished:NO];
+        }
     }
 }
 
@@ -275,6 +279,10 @@
     if (videoId.length) {
         [TBSettings setResumePosition:0 forVideo:videoId];
         [[TBLibrary shared] updatePosition:0 forVideo:videoId];
+        if (self.session.source.info) {
+            NSTimeInterval dur = self.session.source.info.lengthSeconds > 0 ? self.session.source.info.lengthSeconds : CMTimeGetSeconds(self.session.player.currentTime);
+            [TBInnertube reportWatchtime:self.session.source.info position:dur isPaused:YES isFinished:YES];
+        }
     }
     [self dismiss];
 }

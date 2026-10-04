@@ -144,6 +144,18 @@ static TBVideo *TBVideoFromRenderer(NSDictionary *r)
         if ([style isEqualToString:@"LIVE"]) v.isLive = YES;
         else if ([style isEqualToString:@"UPCOMING"]) v.isUpcoming = YES;
         else if ([style isEqualToString:@"SHORTS"]) v.isShort = YES;
+        NSDictionary *resume = TBDict(TBDict(o)[@"thumbnailOverlayResumePlaybackRenderer"]);
+        if (resume) {
+            double percent = TBDbl(resume[@"percentDurationWatched"]);
+            if (percent > 0 && v.lengthSeconds > 0) {
+                v.position = (percent / 100.0) * v.lengthSeconds;
+            }
+        }
+    }
+    NSDictionary *watch = TBDict(r[@"navigationEndpoint"][@"watchEndpoint"]) ?: TBDict(r[@"defaultNavigationEndpoint"][@"watchEndpoint"]);
+    if (watch[@"startTimeSeconds"]) {
+        NSTimeInterval startSec = TBDbl(watch[@"startTimeSeconds"]);
+        if (startSec > 0) v.position = startSec;
     }
     if (v.isLive) { v.lengthText = nil; v.lengthSeconds = 0; }
     return v;
@@ -193,6 +205,19 @@ static TBVideo *TBVideoFromLockup(NSDictionary *lockup)
     NSDictionary *avatar = TBFindFirst(meta[@"image"], @"avatarViewModel");
     v.channelAvatarURL = TBThumbnailURL(avatar[@"image"]);
     if (!v.channelId.length) v.channelId = TBBrowseIdIn(meta[@"image"]);
+    NSMutableArray *resumes = [NSMutableArray array];
+    TBFindAll(lockup, @"thumbnailOverlayResumePlaybackRenderer", resumes, 0);
+    if (resumes.count) {
+        double percent = TBDbl(resumes[0][@"percentDurationWatched"]);
+        if (percent > 0 && v.lengthSeconds > 0) {
+            v.position = (percent / 100.0) * v.lengthSeconds;
+        }
+    }
+    NSDictionary *watch = TBDict(TBFindFirst(lockup, @"watchEndpoint"));
+    if (watch[@"startTimeSeconds"]) {
+        NSTimeInterval startSec = TBDbl(watch[@"startTimeSeconds"]);
+        if (startSec > 0) v.position = startSec;
+    }
     return v;
 }
 
@@ -362,6 +387,18 @@ static TBVideo *TBVideoFromTile(NSDictionary *tile)
         }
     }
     v.viewCount = TBNumberFromText(v.viewsText);
+    NSMutableArray *resumes = [NSMutableArray array];
+    TBFindAll(tile, @"thumbnailOverlayResumePlaybackRenderer", resumes, 0);
+    if (resumes.count) {
+        double percent = TBDbl(resumes[0][@"percentDurationWatched"]);
+        if (percent > 0 && v.lengthSeconds > 0) {
+            v.position = (percent / 100.0) * v.lengthSeconds;
+        }
+    }
+    if (watch[@"startTimeSeconds"]) {
+        NSTimeInterval startSec = TBDbl(watch[@"startTimeSeconds"]);
+        if (startSec > 0) v.position = startSec;
+    }
     return v;
 }
 
@@ -1126,108 +1163,187 @@ static void TBWalk(id node, NSMutableArray *items, NSMutableArray *continuations
 
 #pragma mark - Player
 
+static NSString *TBGenerateCPN(void)
+{
+    const char chars[] = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-_";
+    char cpn[17];
+    for (int i = 0; i < 16; i++) {
+        cpn[i] = chars[arc4random_uniform(sizeof(chars) - 1)];
+    }
+    cpn[16] = '\0';
+    return [NSString stringWithUTF8String:cpn];
+}
+
++ (TBPlayerInfo *)playerInfoFromResponse:(NSDictionary *)response videoId:(NSString *)videoId
+{
+    TBPlayerInfo *info = [[TBPlayerInfo alloc] init];
+    NSDictionary *status = TBDict(response[@"playabilityStatus"]);
+    info.status = TBStr(status[@"status"]) ?: @"";
+    info.statusReason = TBStr(status[@"reason"]) ?: TBText(TBFindFirst(status[@"errorScreen"], @"subreason"));
+    NSDictionary *details = TBDict(response[@"videoDetails"]);
+    info.videoId = TBStr(details[@"videoId"]) ?: videoId;
+    info.title = TBStr(details[@"title"]);
+    info.author = TBStr(details[@"author"]);
+    info.channelId = TBStr(details[@"channelId"]);
+    info.lengthSeconds = TBDbl(details[@"lengthSeconds"]);
+    NSTimeInterval resumeSec = TBDbl(details[@"initialStartTimeSeconds"]) ?: (TBDbl(details[@"playbackPosition"]) ?: TBDbl(details[@"startSeconds"]));
+    if (resumeSec > 0) info.resumePosition = resumeSec;
+
+    NSDictionary *tracking = TBDict(response[@"playbackTracking"]);
+    info.playbackUrl = TBStr(TBDict(tracking[@"videostatsPlaybackUrl"])[@"baseUrl"]);
+    info.watchtimeUrl = TBStr(TBDict(tracking[@"videostatsWatchtimeUrl"])[@"baseUrl"]);
+    info.cpn = TBGenerateCPN();
+
+    info.viewCount = (long long)TBDbl(details[@"viewCount"]);
+    info.isLive = TBBool(details[@"isLive"]);
+    info.isLiveContent = TBBool(details[@"isLiveContent"]);
+    info.shortDescription = TBStr(details[@"shortDescription"]);
+    info.thumbnailURL = TBThumbnailURL(details[@"thumbnail"]);
+    NSDictionary *streaming = TBDict(response[@"streamingData"]);
+    info.hlsManifestURL = TBStr(streaming[@"hlsManifestUrl"]);
+    // progressive MP4 with sound: the tallest up to 720p
+    NSInteger bestHeight = 0;
+    for (id f in TBArr(streaming[@"formats"])) {
+        NSDictionary *format = TBDict(f);
+        NSString *url = TBStr(format[@"url"]);
+        NSString *mime = TBStr(format[@"mimeType"]) ?: @"";
+        NSInteger height = TBInt(format[@"height"]);
+        if (!url.length || ![mime hasPrefix:@"video/mp4"] || [mime rangeOfString:@"avc1"].location == NSNotFound) continue;
+        if (height > 720 || height <= bestHeight) continue;
+        bestHeight = height;
+        info.progressiveURL = url;
+        info.progressiveHeight = height;
+    }
+    // adaptive MP4 files (DASH): H.264 pictures, AAC-LC sound - the media proxy remuxes them when there is no HLS
+    NSMutableArray *dashVideo = [NSMutableArray array];
+    NSMutableArray *dashAudio = [NSMutableArray array];
+    for (id f in TBArr(streaming[@"adaptiveFormats"])) {
+        NSDictionary *format = TBDict(f);
+        NSString *url = TBStr(format[@"url"]);
+        NSString *mime = TBStr(format[@"mimeType"]) ?: @"";
+        NSDictionary *initRange = TBDict(format[@"initRange"]), *indexRange = TBDict(format[@"indexRange"]);
+        if (!url.length || !initRange || !indexRange) continue;
+        BOOL video = [mime hasPrefix:@"video/mp4"] && [mime rangeOfString:@"avc1"].location != NSNotFound;
+        BOOL audio = [mime hasPrefix:@"audio/mp4"] && [mime rangeOfString:@"mp4a.40.2"].location != NSNotFound;
+        if (!video && !audio) continue;
+        TBDashFormat *d = [[TBDashFormat alloc] init];
+        d.itag = TBInt(format[@"itag"]);
+        d.url = url;
+        d.isAudio = audio;
+        NSRange codecs = [mime rangeOfString:@"codecs=\""];
+        if (codecs.location != NSNotFound) {
+            NSString *rest = [mime substringFromIndex:NSMaxRange(codecs)];
+            NSRange quote = [rest rangeOfString:@"\""];
+            d.codecs = quote.location != NSNotFound ? [rest substringToIndex:quote.location] : rest;
+        }
+        d.width = TBInt(format[@"width"]);
+        d.height = TBInt(format[@"height"]);
+        d.frameRate = TBDbl(format[@"fps"]);
+        d.bitrate = TBInt(format[@"bitrate"]);
+        d.initStart = (long long)TBDbl(initRange[@"start"]);
+        d.initEnd = (long long)TBDbl(initRange[@"end"]);
+        d.indexStart = (long long)TBDbl(indexRange[@"start"]);
+        d.indexEnd = (long long)TBDbl(indexRange[@"end"]);
+        d.contentLength = (long long)TBDbl(format[@"contentLength"]);
+        d.duration = TBDbl(format[@"approxDurationMs"]) / 1000.0;
+        d.audioSampleRate = TBInt(format[@"audioSampleRate"]);
+        d.audioChannels = TBInt(format[@"audioChannels"]);
+        NSDictionary *track = TBDict(format[@"audioTrack"]);
+        d.isDefaultAudio = !track || TBBool(track[@"audioIsDefault"]);
+        d.audioTrackName = TBStr(track[@"displayName"]);
+        if (d.indexEnd <= d.indexStart || d.indexEnd > 2000000) continue;
+        [video ? dashVideo : dashAudio addObject:d];
+    }
+    [dashVideo sortUsingComparator:^NSComparisonResult(TBDashFormat *a, TBDashFormat *b) {
+        if (a.height != b.height) return a.height > b.height ? NSOrderedAscending : NSOrderedDescending;
+        if (a.frameRate != b.frameRate) return a.frameRate > b.frameRate ? NSOrderedAscending : NSOrderedDescending;
+        return a.bitrate < b.bitrate ? NSOrderedAscending : (a.bitrate > b.bitrate ? NSOrderedDescending : NSOrderedSame);
+    }];
+    info.dashVideo = dashVideo;
+    TBDashFormat *bestAudio = nil;
+    for (TBDashFormat *a in dashAudio) {
+        if (!bestAudio || (a.isDefaultAudio && !bestAudio.isDefaultAudio) || (a.isDefaultAudio == bestAudio.isDefaultAudio && a.bitrate > bestAudio.bitrate)) bestAudio = a;
+    }
+    info.dashAudio = bestAudio;
+    NSMutableArray *tracks = [NSMutableArray array];
+    for (id t in TBArr(TBDict(TBDict(response[@"captions"])[@"playerCaptionsTracklistRenderer"])[@"captionTracks"])) {
+        NSDictionary *track = TBDict(t);
+        TBCaptionTrack *ct = [[TBCaptionTrack alloc] init];
+        ct.url = TBStr(track[@"baseUrl"]);
+        ct.languageCode = TBStr(track[@"languageCode"]);
+        ct.name = TBText(track[@"name"]);
+        ct.isAuto = [TBStr(track[@"kind"]) isEqualToString:@"asr"];
+        if (ct.url.length) [tracks addObject:ct];
+    }
+    info.captionTracks = tracks;
+    NSDictionary *micro = TBDict(TBDict(response[@"microformat"])[@"playerMicroformatRenderer"]);
+    info.publishDate = TBStr(micro[@"publishDate"]) ?: TBStr(micro[@"uploadDate"]);
+    info.category = TBStr(micro[@"category"]);
+    return info;
+}
+
 + (TBHTTPTask *)player:(NSString *)videoId client:(TBClient)client completion:(void (^)(TBPlayerInfo *info, NSError *error))completion
 {
     NSDictionary *body = @{ @"videoId": videoId ?: @"", @"contentCheckOk": @YES, @"racyCheckOk": @YES };
+    if ([[TBAccount shared] isSignedIn]) {
+        return [[TBAccount shared] withAccessToken:^(NSString *token, NSError *authError) {
+            if (!token.length) {
+                [self call:@"player" body:body client:client completion:^(NSDictionary *response, NSError *error) {
+                    if (error) { completion(nil, error); return; }
+                    completion([self playerInfoFromResponse:response videoId:videoId], nil);
+                }];
+                return;
+            }
+            [self call:@"player" body:body client:client token:token completion:^(NSDictionary *response, NSError *error) {
+                if (error && !response) {
+                    // Fallback to anonymous player call so playback never fails
+                    [self call:@"player" body:body client:client completion:^(NSDictionary *anonResp, NSError *anonErr) {
+                        if (anonErr) { completion(nil, anonErr); return; }
+                        completion([self playerInfoFromResponse:anonResp videoId:videoId], nil);
+                    }];
+                    return;
+                }
+                completion([self playerInfoFromResponse:response videoId:videoId], nil);
+            }];
+        }];
+    }
     return [self call:@"player" body:body client:client completion:^(NSDictionary *response, NSError *error) {
         if (error) { completion(nil, error); return; }
-        TBPlayerInfo *info = [[TBPlayerInfo alloc] init];
-        NSDictionary *status = TBDict(response[@"playabilityStatus"]);
-        info.status = TBStr(status[@"status"]) ?: @"";
-        info.statusReason = TBStr(status[@"reason"]) ?: TBText(TBFindFirst(status[@"errorScreen"], @"subreason"));
-        NSDictionary *details = TBDict(response[@"videoDetails"]);
-        info.videoId = TBStr(details[@"videoId"]) ?: videoId;
-        info.title = TBStr(details[@"title"]);
-        info.author = TBStr(details[@"author"]);
-        info.channelId = TBStr(details[@"channelId"]);
-        info.lengthSeconds = TBDbl(details[@"lengthSeconds"]);
-        info.viewCount = (long long)TBDbl(details[@"viewCount"]);
-        info.isLive = TBBool(details[@"isLive"]);
-        info.isLiveContent = TBBool(details[@"isLiveContent"]);
-        info.shortDescription = TBStr(details[@"shortDescription"]);
-        info.thumbnailURL = TBThumbnailURL(details[@"thumbnail"]);
-        NSDictionary *streaming = TBDict(response[@"streamingData"]);
-        info.hlsManifestURL = TBStr(streaming[@"hlsManifestUrl"]);
-        // progressive MP4 with sound: the tallest up to 720p
-        NSInteger bestHeight = 0;
-        for (id f in TBArr(streaming[@"formats"])) {
-            NSDictionary *format = TBDict(f);
-            NSString *url = TBStr(format[@"url"]);
-            NSString *mime = TBStr(format[@"mimeType"]) ?: @"";
-            NSInteger height = TBInt(format[@"height"]);
-            if (!url.length || ![mime hasPrefix:@"video/mp4"] || [mime rangeOfString:@"avc1"].location == NSNotFound) continue;
-            if (height > 720 || height <= bestHeight) continue;
-            bestHeight = height;
-            info.progressiveURL = url;
-            info.progressiveHeight = height;
-        }
-        // adaptive MP4 files (DASH): H.264 pictures, AAC-LC sound - the media proxy remuxes them when there is no HLS
-        NSMutableArray *dashVideo = [NSMutableArray array];
-        NSMutableArray *dashAudio = [NSMutableArray array];
-        for (id f in TBArr(streaming[@"adaptiveFormats"])) {
-            NSDictionary *format = TBDict(f);
-            NSString *url = TBStr(format[@"url"]);
-            NSString *mime = TBStr(format[@"mimeType"]) ?: @"";
-            NSDictionary *initRange = TBDict(format[@"initRange"]), *indexRange = TBDict(format[@"indexRange"]);
-            if (!url.length || !initRange || !indexRange) continue;
-            BOOL video = [mime hasPrefix:@"video/mp4"] && [mime rangeOfString:@"avc1"].location != NSNotFound;
-            BOOL audio = [mime hasPrefix:@"audio/mp4"] && [mime rangeOfString:@"mp4a.40.2"].location != NSNotFound;
-            if (!video && !audio) continue;
-            TBDashFormat *d = [[TBDashFormat alloc] init];
-            d.itag = TBInt(format[@"itag"]);
-            d.url = url;
-            d.isAudio = audio;
-            NSRange codecs = [mime rangeOfString:@"codecs=\""];
-            if (codecs.location != NSNotFound) {
-                NSString *rest = [mime substringFromIndex:NSMaxRange(codecs)];
-                NSRange quote = [rest rangeOfString:@"\""];
-                d.codecs = quote.location != NSNotFound ? [rest substringToIndex:quote.location] : rest;
-            }
-            d.width = TBInt(format[@"width"]);
-            d.height = TBInt(format[@"height"]);
-            d.frameRate = TBDbl(format[@"fps"]);
-            d.bitrate = TBInt(format[@"bitrate"]);
-            d.initStart = (long long)TBDbl(initRange[@"start"]);
-            d.initEnd = (long long)TBDbl(initRange[@"end"]);
-            d.indexStart = (long long)TBDbl(indexRange[@"start"]);
-            d.indexEnd = (long long)TBDbl(indexRange[@"end"]);
-            d.contentLength = (long long)TBDbl(format[@"contentLength"]);
-            d.duration = TBDbl(format[@"approxDurationMs"]) / 1000.0;
-            d.audioSampleRate = TBInt(format[@"audioSampleRate"]);
-            d.audioChannels = TBInt(format[@"audioChannels"]);
-            NSDictionary *track = TBDict(format[@"audioTrack"]);
-            d.isDefaultAudio = !track || TBBool(track[@"audioIsDefault"]);
-            d.audioTrackName = TBStr(track[@"displayName"]);
-            if (d.indexEnd <= d.indexStart || d.indexEnd > 2000000) continue;   // (an index of megabytes: not this kind of file)
-            [video ? dashVideo : dashAudio addObject:d];
-        }
-        [dashVideo sortUsingComparator:^NSComparisonResult(TBDashFormat *a, TBDashFormat *b) {
-            if (a.height != b.height) return a.height > b.height ? NSOrderedAscending : NSOrderedDescending;
-            if (a.frameRate != b.frameRate) return a.frameRate > b.frameRate ? NSOrderedAscending : NSOrderedDescending;
-            return a.bitrate < b.bitrate ? NSOrderedAscending : (a.bitrate > b.bitrate ? NSOrderedDescending : NSOrderedSame);
+        completion([self playerInfoFromResponse:response videoId:videoId], nil);
+    }];
+}
+
++ (void)reportPlayback:(TBPlayerInfo *)info
+{
+    if (!info.playbackUrl.length || ![[TBAccount shared] isSignedIn]) return;
+    [[TBAccount shared] withAccessToken:^(NSString *token, NSError *error) {
+        if (!token.length) return;
+        NSString *url = [NSString stringWithFormat:@"%@&cpn=%@", info.playbackUrl, info.cpn ?: @""];
+        NSDictionary *headers = @{
+            @"Authorization": [NSString stringWithFormat:@"Bearer %@", token],
+            @"User-Agent": [self userAgentForClient:TBClientIOS]
+        };
+        [TBHTTP get:url headers:headers completion:^(NSInteger status, NSData *body, NSDictionary *respHeaders, NSError *err) {
+            TBLog(@"Playback reported to YouTube for %@: HTTP %ld", info.videoId, (long)status);
         }];
-        info.dashVideo = dashVideo;
-        // the sound: the original track (dubbed ones carry an audioTrack that is not the default), the best bitrate
-        TBDashFormat *bestAudio = nil;
-        for (TBDashFormat *a in dashAudio) {
-            if (!bestAudio || (a.isDefaultAudio && !bestAudio.isDefaultAudio) || (a.isDefaultAudio == bestAudio.isDefaultAudio && a.bitrate > bestAudio.bitrate)) bestAudio = a;
-        }
-        info.dashAudio = bestAudio;
-        NSMutableArray *tracks = [NSMutableArray array];
-        for (id t in TBArr(TBDict(TBDict(response[@"captions"])[@"playerCaptionsTracklistRenderer"])[@"captionTracks"])) {
-            NSDictionary *track = TBDict(t);
-            TBCaptionTrack *ct = [[TBCaptionTrack alloc] init];
-            ct.url = TBStr(track[@"baseUrl"]);
-            ct.languageCode = TBStr(track[@"languageCode"]);
-            ct.name = TBText(track[@"name"]);
-            ct.isAuto = [TBStr(track[@"kind"]) isEqualToString:@"asr"];
-            if (ct.url.length) [tracks addObject:ct];
-        }
-        info.captionTracks = tracks;
-        NSDictionary *micro = TBDict(TBDict(response[@"microformat"])[@"playerMicroformatRenderer"]);
-        info.publishDate = TBStr(micro[@"publishDate"]) ?: TBStr(micro[@"uploadDate"]);
-        info.category = TBStr(micro[@"category"]);
-        completion(info, nil);
+    }];
+}
+
++ (void)reportWatchtime:(TBPlayerInfo *)info position:(NSTimeInterval)position isPaused:(BOOL)isPaused isFinished:(BOOL)isFinished
+{
+    if (!info.watchtimeUrl.length || ![[TBAccount shared] isSignedIn] || info.isLive) return;
+    [[TBAccount shared] withAccessToken:^(NSString *token, NSError *error) {
+        if (!token.length) return;
+        NSString *state = isFinished ? @"completed" : (isPaused ? @"paused" : @"playing");
+        NSString *url = [NSString stringWithFormat:@"%@&cpn=%@&cmt=%.1f&state=%@&ns=yt&docid=%@",
+                         info.watchtimeUrl, info.cpn ?: @"", position, state, info.videoId ?: @""];
+        NSDictionary *headers = @{
+            @"Authorization": [NSString stringWithFormat:@"Bearer %@", token],
+            @"User-Agent": [self userAgentForClient:TBClientIOS]
+        };
+        [TBHTTP get:url headers:headers completion:^(NSInteger status, NSData *body, NSDictionary *respHeaders, NSError *err) {
+            TBLog(@"Watchtime reported to YouTube for %@ (%.1f s, %@): HTTP %ld", info.videoId, position, state, (long)status);
+        }];
     }];
 }
 

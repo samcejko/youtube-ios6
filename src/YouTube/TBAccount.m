@@ -715,8 +715,56 @@ static NSString *TBAPIThumbnail(NSDictionary *thumbnails)
     }];
 }
 
+- (TBHTTPTask *)editPlaylist:(NSString *)playlistId action:(NSString *)action videoId:(NSString *)videoId completion:(void (^)(NSError *error))completion
+{
+    if (!self.isSignedIn) {
+        if (completion) completion(TBMakeError(TBErrorAuth, L(@"Not signed in.")));
+        return nil;
+    }
+    return [self withAccessToken:^(NSString *token, NSError *authError) {
+        if (!token.length) {
+            if (completion) completion(authError ?: TBMakeError(TBErrorAuth, L(@"Not signed in.")));
+            return;
+        }
+        NSMutableDictionary *actionDict = [NSMutableDictionary dictionary];
+        actionDict[@"action"] = action ?: @"ACTION_ADD_VIDEO";
+        if ([action isEqualToString:@"ACTION_REMOVE_VIDEO_BY_VIDEO_ID"]) {
+            actionDict[@"removedVideoId"] = videoId ?: @"";
+        } else {
+            actionDict[@"addedVideoId"] = videoId ?: @"";
+        }
+        NSDictionary *body = @{
+            @"playlistId": playlistId ?: @"WL",
+            @"actions": @[ actionDict ]
+        };
+        TBClient client = [self usesCustomOAuthClient] ? TBClientWeb : TBClientTV;
+        [TBInnertube call:@"browse/edit_playlist" body:body client:client token:token completion:^(NSDictionary *response, NSError *error) {
+            TBLog(@"edit_playlist %@ (%@, %@): status %@", playlistId, action, videoId, error ? error.localizedDescription : @"OK");
+            if (completion) completion(error);
+        }];
+    }];
+}
+
+- (TBHTTPTask *)addToWatchLater:(NSString *)videoId completion:(void (^)(NSError *error))completion
+{
+    return [self editPlaylist:@"WL" action:@"ACTION_ADD_VIDEO" videoId:videoId completion:completion];
+}
+
+- (TBHTTPTask *)removeFromWatchLater:(NSString *)videoId completion:(void (^)(NSError *error))completion
+{
+    return [self editPlaylist:@"WL" action:@"ACTION_REMOVE_VIDEO_BY_VIDEO_ID" videoId:videoId completion:completion];
+}
+
+- (TBHTTPTask *)removeFromHistory:(NSString *)videoId completion:(void (^)(NSError *error))completion
+{
+    return [self editPlaylist:@"HL" action:@"ACTION_REMOVE_VIDEO_BY_VIDEO_ID" videoId:videoId completion:completion];
+}
+
 - (TBHTTPTask *)addVideo:(NSString *)videoId toPlaylist:(NSString *)playlistId completion:(void (^)(NSError *error))completion
 {
+    if (![self usesCustomOAuthClient]) {
+        return [self editPlaylist:playlistId action:@"ACTION_ADD_VIDEO" videoId:videoId completion:completion];
+    }
     id body = @{ @"snippet": @{ @"playlistId": playlistId ?: @"", @"resourceId": @{ @"kind": @"youtube#video", @"videoId": videoId ?: @"" } } };
     return [self api:@"POST" path:@"playlistItems" query:@{ @"part": @"snippet" } body:body completion:^(NSDictionary *json, NSError *error) {
         completion(error);

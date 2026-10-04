@@ -52,5 +52,9 @@ extern NSString * const TBAccountDidChangeNotification;
 - (TBHTTPTask *)likedVideosPage:(NSString *)pageToken completion:(TBItemsCompletion)completion;
 - (TBHTTPTask *)playlistsPage:(NSString *)pageToken completion:(TBItemsCompletion)completion;
 - (TBHTTPTask *)addVideo:(NSString *)videoId toPlaylist:(NSString *)playlistId completion:(void (^)(NSError *error))completion;
+- (TBHTTPTask *)editPlaylist:(NSString *)playlistId action:(NSString *)action videoId:(NSString *)videoId completion:(void (^)(NSError *error))completion;
+- (TBHTTPTask *)addToWatchLater:(NSString *)videoId completion:(void (^)(NSError *error))completion;
+- (TBHTTPTask *)removeFromWatchLater:(NSString *)videoId completion:(void (^)(NSError *error))completion;
+- (TBHTTPTask *)removeFromHistory:(NSString *)videoId completion:(void (^)(NSError *error))completion;
 
 @end

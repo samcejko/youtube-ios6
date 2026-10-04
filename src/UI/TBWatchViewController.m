@@ -531,6 +531,8 @@ typedef NS_ENUM(NSInteger, TBWatchSection) {
         [s updateChapters];
         if (!source.isLive && s.pendingSeek < 0) {
             NSTimeInterval resume = [TBSettings resumePositionForVideo:videoId];
+            if (resume <= 0 && s.video.position > 10) resume = s.video.position;
+            if (resume <= 0 && info.resumePosition > 10) resume = info.resumePosition;
             if (resume > 10 && (info.lengthSeconds <= 0 || resume < info.lengthSeconds - 20)) s.pendingSeek = resume;
         }
         [s playSource];
@@ -551,6 +553,9 @@ typedef NS_ENUM(NSInteger, TBWatchSection) {
     for (TBVariant *v in self.source.variants) [names addObject:[v title]];
     TBLog(@"Playing %@: %@ (%@) renditions: %@ audio: %lu", self.video.videoId, title, self.source.isRemuxed ? @"DASH remux" : (self.source.hasHLS ? @"HLS" : @"MP4"),
           names.count ? [names componentsJoinedByString:@", "] : @"-", (unsigned long)self.source.audioRenditions.count);
+    if (self.source.info) {
+        [TBInnertube reportPlayback:self.source.info];
+    }
     [self loadItemWithURL:url];
 }
 
@@ -672,6 +677,9 @@ typedef NS_ENUM(NSInteger, TBWatchSection) {
     self.playerView.playing = NO;
     [TBSettings setResumePosition:0 forVideo:self.video.videoId];
     [[TBLibrary shared] updatePosition:0 forVideo:self.video.videoId];
+    if (self.source.info) {
+        [TBInnertube reportWatchtime:self.source.info position:self.source.info.lengthSeconds isPaused:YES isFinished:YES];
+    }
     self.playerView.controlsLocked = YES;
     [self updateIdleTimer];
     TBVideo *next = [self nextVideo];
@@ -765,6 +773,9 @@ typedef NS_ENUM(NSInteger, TBWatchSection) {
     if (position > 0 && !isnan(position)) {
         [TBSettings setResumePosition:position forVideo:self.video.videoId];
         [[TBLibrary shared] updatePosition:position forVideo:self.video.videoId];
+        if (self.source.info) {
+            [TBInnertube reportWatchtime:self.source.info position:position isPaused:!self.playerView.playing isFinished:NO];
+        }
     }
 }
 
@@ -1251,7 +1262,15 @@ typedef NS_ENUM(NSInteger, TBWatchSection) {
             break;
         }
         case 1: {   // watch later
+            BOOL wasInWL = [[TBLibrary shared] isInWatchLater:self.video.videoId];
             [[TBLibrary shared] toggleWatchLater:self.video];
+            if ([[TBAccount shared] isSignedIn] && self.video.videoId.length) {
+                if (wasInWL) {
+                    [[TBAccount shared] removeFromWatchLater:self.video.videoId completion:nil];
+                } else {
+                    [[TBAccount shared] addToWatchLater:self.video.videoId completion:nil];
+                }
+            }
             [self.tableView reloadData];
             break;
         }

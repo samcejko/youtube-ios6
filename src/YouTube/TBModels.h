@@ -153,6 +153,10 @@
 @property (nonatomic, copy) NSString *thumbnailURL;
 @property (nonatomic, copy) NSString *publishDate;          // "2009-10-25"
 @property (nonatomic, copy) NSString *category;
+@property (nonatomic) NSTimeInterval resumePosition;
+@property (nonatomic, copy) NSString *playbackUrl;
+@property (nonatomic, copy) NSString *watchtimeUrl;
+@property (nonatomic, copy) NSString *cpn;
 - (BOOL)isPlayable;
 @end
 

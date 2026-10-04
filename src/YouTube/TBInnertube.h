@@ -74,4 +74,8 @@ extern NSString * const TBBrowseLive;
 // Items out of any piece of InnerTube JSON (renderers and view models the app understands); continuation tokens found on the way
 + (NSArray *)itemsInNode:(id)node continuation:(NSString **)continuation;
 
+// Playback tracking & watch progress synchronization with YouTube
++ (void)reportPlayback:(TBPlayerInfo *)info;
++ (void)reportWatchtime:(TBPlayerInfo *)info position:(NSTimeInterval)position isPaused:(BOOL)isPaused isFinished:(BOOL)isFinished;
+
 @end

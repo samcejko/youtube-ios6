@@ -102,6 +102,16 @@
         }];
         grid.title = L(@"History");
         grid.emptyText = L(@"Nothing watched yet.");
+        __weak TBGridViewController *weakGrid = grid;
+        grid.onRemoveItem = ^(id item) {
+            if (![item isKindOfClass:[TBVideo class]]) return;
+            NSString *vid = [(TBVideo *)item videoId];
+            [[TBLibrary shared] removeFromHistory:vid];
+            [[TBAccount shared] removeFromHistory:vid completion:nil];
+            NSMutableArray *curr = [weakGrid.items mutableCopy];
+            [curr removeObject:item];
+            [weakGrid replaceItems:curr];
+        };
         [self.navigationController pushViewController:grid animated:YES];
         return;
     }
@@ -120,6 +130,16 @@
         }];
         grid.title = L(@"Watch later");
         grid.emptyText = L(@"Nothing saved for later. The button is on every video's page.");
+        __weak TBGridViewController *weakGrid = grid;
+        grid.onRemoveItem = ^(id item) {
+            if (![item isKindOfClass:[TBVideo class]]) return;
+            NSString *vid = [(TBVideo *)item videoId];
+            [[TBLibrary shared] removeFromWatchLater:vid];
+            [[TBAccount shared] removeFromWatchLater:vid completion:nil];
+            NSMutableArray *curr = [weakGrid.items mutableCopy];
+            [curr removeObject:item];
+            [weakGrid replaceItems:curr];
+        };
         [self.navigationController pushViewController:grid animated:YES];
         return;
     }
@@ -154,6 +174,15 @@
                     if (completion) completion(items, nextContinuation, error);
                 }];
             }
+            if (!liked && ![[TBAccount shared] usesCustomOAuthClient]) {
+                return [TBInnertube authenticatedBrowse:@"FEplaylist_aggregation" params:nil continuation:continuation completion:^(NSDictionary *resp, NSArray *items, NSString *nextContinuation, NSError *error) {
+                    if (items.count > 0 || !error) {
+                        if (completion) completion(items, nextContinuation, error);
+                    } else {
+                        [[TBAccount shared] playlistsPage:continuation completion:completion];
+                    }
+                }];
+            }
             return liked ? [[TBAccount shared] likedVideosPage:continuation completion:completion] : [[TBAccount shared] playlistsPage:continuation completion:completion];
         }];
         paged.title = liked ? L(@"Liked videos") : L(@"My playlists");
@@ -169,7 +198,12 @@
             grid.title = L(@"History");
             grid.emptyText = L(@"Nothing watched yet.");
             [grid replaceItems:[library history]];
-            grid.onRemoveItem = ^(id item) { [library removeFromHistory:[(TBVideo *)item videoId]]; [weakGrid replaceItems:[library history]]; };
+            grid.onRemoveItem = ^(id item) {
+                NSString *vid = [(TBVideo *)item videoId];
+                [library removeFromHistory:vid];
+                if ([[TBAccount shared] isSignedIn]) [[TBAccount shared] removeFromHistory:vid completion:nil];
+                [weakGrid replaceItems:[library history]];
+            };
             grid.navigationItem.rightBarButtonItem = [[UIBarButtonItem alloc] initWithTitle:L(@"Clear") style:UIBarButtonItemStyleBordered target:self action:@selector(clearHistoryTapped)];
             break;
         }
@@ -177,7 +211,12 @@
             grid.title = L(@"Watch later");
             grid.emptyText = L(@"Nothing saved for later. The button is on every video's page.");
             [grid replaceItems:[library watchLater]];
-            grid.onRemoveItem = ^(id item) { [library removeFromWatchLater:[(TBVideo *)item videoId]]; [weakGrid replaceItems:[library watchLater]]; };
+            grid.onRemoveItem = ^(id item) {
+                NSString *vid = [(TBVideo *)item videoId];
+                [library removeFromWatchLater:vid];
+                if ([[TBAccount shared] isSignedIn]) [[TBAccount shared] removeFromWatchLater:vid completion:nil];
+                [weakGrid replaceItems:[library watchLater]];
+            };
             break;
         }
         default: {

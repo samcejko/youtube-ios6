@@ -135,13 +135,27 @@ def resolve(ref):
     # itag -> fresh direct URL for every format served straight over https (the DASH ladder 133-137 etc. and audio
     # 139/140), skipping HLS. The app keeps the sidx byte ranges it already has per itag and swaps in these URLs.
     formats = {}
+    audio_pick = {}   # base itag -> (score, url): for dubbed videos keep only the original/default track
     for f in fmts:
         u = f.get("url")
         if not u or (f.get("protocol") or "") not in ("https", "http"):
             continue
-        itag = str(f.get("format_id") or "")
-        if itag.isdigit():
-            formats[itag] = u
+        fid = str(f.get("format_id") or "")
+        base = fid.split("-")[0]   # multi-language audio comes as "140-0".."140-19"
+        if not base.isdigit():
+            continue
+        is_audio = f.get("acodec") not in (None, "none") and f.get("vcodec") in (None, "none")
+        if is_audio and "-" in fid:
+            score = f.get("language_preference") or -1
+            note = (f.get("format_note") or "").lower()
+            if "default" in note or "original" in note:
+                score += 1000
+            if base not in audio_pick or score > audio_pick[base][0]:
+                audio_pick[base] = (score, u)
+        else:
+            formats[base] = u
+    for base, (score, u) in audio_pick.items():
+        formats.setdefault(base, u)
     prog = _pick(fmts, "prog")
     out = {
         "id": vid,
