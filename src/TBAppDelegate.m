@@ -162,6 +162,14 @@ static BOOL TBPressView(UIView *v, NSString *text)
         TBLog(@"Proxy request log %@", [TBMediaProxy shared].logRequests ? @"on" : @"off");
         return YES;
     }
+    if ([target isEqualToString:@"resolver"]) {
+        // point the app at a yt-dlp resolver on your computer (resolver?url=http://192.168.1.50:8740); empty url turns it off
+        NSString *url = params[@"url"];
+        if (url != nil) { [TBSettings setResolverBase:url]; [TBSettings save]; }
+        NSString *base = [TBSettings resolverBase];
+        TBLog(@"Resolver base: %@", base.length ? base : @"(off)");
+        return YES;
+    }
     if ([target isEqualToString:@"stats"]) {
         struct task_basic_info info;
         mach_msg_type_number_t count = TASK_BASIC_INFO_COUNT;

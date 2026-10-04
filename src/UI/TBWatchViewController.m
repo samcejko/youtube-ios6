@@ -1,5 +1,6 @@
 #import "TBWatchViewController.h"
 #import "TBPlayerView.h"
+#import "TBMiniPlayer.h"
 #import "TBCells.h"
 #import "TBCommentsViewController.h"
 #import "TBExternalOpen.h"
@@ -30,10 +31,60 @@ typedef NS_ENUM(NSInteger, TBWatchSection) {
     TBWatchSectionInfo = 0,       // title + meta, actions
     TBWatchSectionChannel,
     TBWatchSectionDescription,
+    TBWatchSectionChapters,
     TBWatchSectionComments,
     TBWatchSectionRelated,
     TBWatchSectionCount,
 };
+
+// A pushed list of a video's chapters; tapping one seeks the player and closes the list
+@interface TBChapterListViewController : UITableViewController
+@property (nonatomic, strong) NSArray *chapters;    // TBChapter
+@property (nonatomic) NSInteger currentIndex;
+@property (nonatomic, copy) void (^onSelect)(TBChapter *chapter);
+- (instancetype)initWithChapters:(NSArray *)chapters currentIndex:(NSInteger)currentIndex;
+@end
+
+@implementation TBChapterListViewController
+- (instancetype)initWithChapters:(NSArray *)chapters currentIndex:(NSInteger)currentIndex
+{
+    self = [super initWithStyle:UITableViewStylePlain];
+    if (self) { _chapters = chapters; _currentIndex = currentIndex; self.title = L(@"Chapters"); }
+    return self;
+}
+- (void)viewDidLoad
+{
+    [super viewDidLoad];
+    TBTheme *t = [TBTheme shared];
+    [t applyToTableView:self.tableView];
+    self.tableView.backgroundColor = [t cardColor];
+    self.tableView.tableFooterView = [[UIView alloc] initWithFrame:CGRectZero];
+}
+- (NSInteger)tableView:(UITableView *)tableView numberOfRowsInSection:(NSInteger)section { return (NSInteger)self.chapters.count; }
+- (UITableViewCell *)tableView:(UITableView *)tableView cellForRowAtIndexPath:(NSIndexPath *)indexPath
+{
+    TBTheme *t = [TBTheme shared];
+    UITableViewCell *cell = [[UITableViewCell alloc] initWithStyle:UITableViewCellStyleValue1 reuseIdentifier:nil];
+    [t styleCell:cell];
+    TBChapter *c = self.chapters[(NSUInteger)indexPath.row];
+    cell.textLabel.text = c.title;
+    cell.textLabel.font = [UIFont systemFontOfSize:15];
+    cell.textLabel.numberOfLines = 2;
+    cell.detailTextLabel.text = [TBUtils formatDuration:c.start];
+    cell.detailTextLabel.textColor = [t secondaryTextColor];
+    cell.detailTextLabel.backgroundColor = [UIColor clearColor];
+    if (indexPath.row == self.currentIndex) {
+        cell.textLabel.textColor = [t accentColor];
+        cell.detailTextLabel.textColor = [t accentColor];
+    }
+    return cell;
+}
+- (void)tableView:(UITableView *)tableView didSelectRowAtIndexPath:(NSIndexPath *)indexPath
+{
+    [tableView deselectRowAtIndexPath:indexPath animated:YES];
+    if (self.onSelect) self.onSelect(self.chapters[(NSUInteger)indexPath.row]);
+}
+@end
 
 // The row with the title and the numbers
 @interface TBWatchTitleCell : UITableViewCell
@@ -147,6 +198,8 @@ typedef NS_ENUM(NSInteger, TBWatchSection) {
 @property (nonatomic, strong) NSTimer *tickTimer;
 @property (nonatomic) float playbackRate;
 @property (nonatomic) NSInteger pendingSheet;    // 1 quality, 2 share, 3 rate
+@property (nonatomic, strong) NSArray *chapters;         // TBChapter, parsed from the description
+@property (nonatomic, strong) TBPlaybackSession *sessionToAdopt;   // set by initWithSession: before the view loads
 @end
 
 @implementation TBWatchViewController
@@ -161,6 +214,21 @@ typedef NS_ENUM(NSInteger, TBWatchSection) {
         _playbackRate = 1;
         _wantsToPlay = YES;
         self.wantsFullScreenLayout = YES;
+    }
+    return self;
+}
+
+- (instancetype)initWithSession:(TBPlaybackSession *)session
+{
+    self = [super initWithNibName:nil bundle:nil];
+    if (self) {
+        _video = session.video;
+        _quality = session.quality ?: [TBSettings preferredQuality];
+        _pendingSeek = -1;
+        _playbackRate = 1;
+        _wantsToPlay = session.wantsToPlay;
+        self.wantsFullScreenLayout = YES;
+        _sessionToAdopt = session;
     }
     return self;
 }
@@ -184,6 +252,7 @@ typedef NS_ENUM(NSInteger, TBWatchSection) {
     self.playerView.chatButtonHidden = YES;
     self.playerView.isLive = NO;
     self.playerView.playing = YES;
+    self.playerView.advancedGesturesEnabled = YES;   // double-tap to skip, drag for brightness / volume
     [self.view addSubview:self.playerView];
 
     self.captionLabel = [[UILabel alloc] initWithFrame:CGRectZero];
@@ -228,7 +297,13 @@ typedef NS_ENUM(NSInteger, TBWatchSection) {
     [nc addObserver:self selector:@selector(settingsChanged) name:TBSettingsDidChangeNotification object:nil];
 
     self.tickTimer = [NSTimer scheduledTimerWithTimeInterval:0.5 target:self selector:@selector(tick) userInfo:nil repeats:YES];
-    [self startWithVideo:self.video];
+    if (self.sessionToAdopt) {
+        TBPlaybackSession *session = self.sessionToAdopt;
+        self.sessionToAdopt = nil;
+        [self adoptSession:session];
+    } else {
+        [self startWithVideo:self.video];
+    }
 }
 
 - (void)viewWillAppear:(BOOL)animated
@@ -335,12 +410,14 @@ typedef NS_ENUM(NSInteger, TBWatchSection) {
 
 - (void)startWithVideo:(TBVideo *)video
 {
+    [[TBMiniPlayer shared] dismiss];   // a fresh video replaces anything still floating in the mini player
     self.video = video;
     self.playerView.title = video.title ?: @"";
     self.playerView.subtitle = video.channelName ?: @"";
     self.playerView.isLive = video.isLive;
     self.playerView.qualityTitle = @"";
     self.playerView.statusText = @"";
+    self.playerView.minimizeButtonHidden = video.isLive;
     self.info = nil;
     self.votes = nil;
     self.sponsorSegments = nil;
@@ -349,6 +426,8 @@ typedef NS_ENUM(NSInteger, TBWatchSection) {
     self.captionLabel.hidden = YES;
     self.descriptionExpanded = NO;
     self.lastSkippedEnd = -1;
+    self.chapters = nil;
+    [self.playerView setChapterFractions:nil titles:nil];
     [self.tableView reloadData];
     [self.tableView setContentOffset:CGPointZero animated:NO];
     [self startPlayback];
@@ -387,6 +466,7 @@ typedef NS_ENUM(NSInteger, TBWatchSection) {
         }
         [[TBLibrary shared] updateDetailsOf:s.video];
         [s.tableView reloadData];
+        [s updateChapters];
         [s updateNowPlaying];
     }];
     [self.votesTask cancel];
@@ -445,8 +525,10 @@ typedef NS_ENUM(NSInteger, TBWatchSection) {
         if (info.lengthSeconds > 0) s.video.lengthSeconds = info.lengthSeconds;
         s.video.isLive = source.isLive;
         s.playerView.isLive = source.isLive;
+        s.playerView.minimizeButtonHidden = source.isLive;
         [[TBLibrary shared] updateDetailsOf:s.video];
         [s.tableView reloadData];
+        [s updateChapters];
         if (!source.isLive && s.pendingSeek < 0) {
             NSTimeInterval resume = [TBSettings resumePositionForVideo:videoId];
             if (resume > 10 && (info.lengthSeconds <= 0 || resume < info.lengthSeconds - 20)) s.pendingSeek = resume;
@@ -472,11 +554,8 @@ typedef NS_ENUM(NSInteger, TBWatchSection) {
     [self loadItemWithURL:url];
 }
 
-- (void)loadItemWithURL:(NSURL *)url
+- (void)observeItem:(AVPlayerItem *)item
 {
-    [self detachItem];
-    AVPlayerItem *item = [AVPlayerItem playerItemWithURL:url];
-    self.item = item;
     [item addObserver:self forKeyPath:@"status" options:0 context:TBStatusContext];
     [item addObserver:self forKeyPath:@"playbackBufferEmpty" options:0 context:TBBufferEmptyContext];
     [item addObserver:self forKeyPath:@"playbackLikelyToKeepUp" options:0 context:TBKeepUpContext];
@@ -484,6 +563,14 @@ typedef NS_ENUM(NSInteger, TBWatchSection) {
     [nc addObserver:self selector:@selector(itemDidPlayToEnd:) name:AVPlayerItemDidPlayToEndTimeNotification object:item];
     [nc addObserver:self selector:@selector(itemFailed:) name:AVPlayerItemFailedToPlayToEndTimeNotification object:item];
     [nc addObserver:self selector:@selector(itemStalled:) name:AVPlayerItemPlaybackStalledNotification object:item];
+}
+
+- (void)loadItemWithURL:(NSURL *)url
+{
+    [self detachItem];
+    AVPlayerItem *item = [AVPlayerItem playerItemWithURL:url];
+    self.item = item;
+    [self observeItem:item];
     if (!self.player) {
         self.player = [AVPlayer playerWithPlayerItem:item];
         self.player.allowsExternalPlayback = NO;   // (the proxy lives on this device only)
@@ -709,6 +796,132 @@ typedef NS_ENUM(NSInteger, TBWatchSection) {
             self.item.playbackBufferEmpty, self.item.playbackLikelyToKeepUp, self.currentVariant ? [self.currentVariant title] : @"auto"];
 }
 
+#pragma mark - Chapters
+
+- (void)updateChapters
+{
+    NSString *description = self.info.descriptionText.length ? self.info.descriptionText : self.source.info.shortDescription;
+    NSTimeInterval duration = self.source.info.lengthSeconds > 0 ? self.source.info.lengthSeconds : self.video.lengthSeconds;
+    NSArray *chapters = (self.source && !self.source.isLive) ? [TBChapter chaptersFromDescription:description duration:duration] : nil;
+    BOOL changed = (chapters.count != self.chapters.count);
+    self.chapters = chapters;
+    if (duration > 0 && chapters.count) {
+        NSMutableArray *fractions = [NSMutableArray array], *titles = [NSMutableArray array];
+        for (TBChapter *c in chapters) { [fractions addObject:@(c.start / duration)]; [titles addObject:c.title ?: @""]; }
+        [self.playerView setChapterFractions:fractions titles:titles];
+    } else {
+        [self.playerView setChapterFractions:nil titles:nil];
+    }
+    if (changed) [self.tableView reloadData];
+}
+
+- (NSInteger)currentChapterIndex
+{
+    if (!self.chapters.count) return -1;
+    double position = CMTimeGetSeconds(self.player.currentTime);
+    if (isnan(position)) position = 0;
+    NSInteger index = 0;
+    for (NSUInteger i = 0; i < self.chapters.count; i++) {
+        if (position + 1e-6 >= [(TBChapter *)self.chapters[i] start]) index = (NSInteger)i; else break;
+    }
+    return index;
+}
+
+- (void)openChapters
+{
+    if (!self.chapters.count) return;
+    TBChapterListViewController *list = [[TBChapterListViewController alloc] initWithChapters:self.chapters currentIndex:[self currentChapterIndex]];
+    __weak TBWatchViewController *weakSelf = self;
+    list.onSelect = ^(TBChapter *chapter) {
+        TBWatchViewController *s = weakSelf;
+        [s seekToSeconds:chapter.start];
+        [s.playerView showControlsBriefly];
+        [s dismissViewControllerAnimated:YES completion:nil];
+    };
+    [TBNavigator showPage:list from:self];
+}
+
+#pragma mark - Mini player
+
+- (void)adoptSession:(TBPlaybackSession *)session
+{
+    self.source = session.source;
+    self.currentVariant = session.currentVariant;
+    self.quality = session.quality ?: self.quality;
+    self.queue = session.queue;
+    self.queueIndex = session.queueIndex;
+    self.proxyGeneration = session.proxyGeneration;
+    self.wantsToPlay = session.wantsToPlay;
+    self.video = session.video;
+
+    self.playerView.title = self.video.title ?: @"";
+    self.playerView.subtitle = self.video.channelName ?: @"";
+    self.playerView.isLive = NO;
+    self.playerView.minimizeButtonHidden = NO;
+    self.playerView.qualityTitle = self.currentVariant ? [self.currentVariant title] : L(@"Auto");
+
+    // the media proxy restarted while the bar floated: the old URLs are dead, so start over
+    if ([TBMediaProxy shared].generation != self.proxyGeneration) {
+        [self startWithVideo:self.video];
+        return;
+    }
+
+    self.player = session.player;
+    self.playerView.player = self.player;
+    self.item = self.player.currentItem;
+    if (!self.item) {
+        // the handed-over player somehow lost its item: reload the video from scratch
+        [self startWithVideo:self.video];
+        return;
+    }
+    [self observeItem:self.item];
+    if (self.item.status == AVPlayerItemStatusFailed) {
+        [self handlePlaybackFailure:self.item.error];
+    } else {
+        self.itemReady = (self.item.status == AVPlayerItemStatusReadyToPlay);
+        [self.playerView setBuffering:!self.itemReady];
+    }
+    self.lastProgressTime = [NSDate timeIntervalSinceReferenceDate];
+    self.lastPosition = -1;
+    self.playerView.playing = self.wantsToPlay;
+    if (self.wantsToPlay && self.player.rate < 0.01) [self.player play];
+
+    [self.tableView reloadData];
+    [self loadInfo];
+    [self loadCaptions];
+    [self updateChapters];
+    [self updateNowPlaying];
+    [[TBLibrary shared] addToHistory:self.video];
+}
+
+- (void)minimizeToMiniPlayer
+{
+    if (!self.player || !self.item || !self.source || self.source.isLive) return;
+    [self rememberPosition];
+    TBPlaybackSession *session = [[TBPlaybackSession alloc] init];
+    session.player = self.player;
+    session.video = self.video;
+    session.source = self.source;
+    session.queue = self.queue;
+    session.queueIndex = self.queueIndex;
+    session.quality = self.quality;
+    session.currentVariant = self.currentVariant;
+    session.position = CMTimeGetSeconds(self.player.currentTime);
+    session.wantsToPlay = self.wantsToPlay;
+    session.proxyGeneration = self.proxyGeneration;
+    // stop observing but leave the player running; the mini bar adopts it
+    [self detachItem];
+    self.playerView.player = nil;
+    self.player = nil;
+    self.source = nil;
+    [TBMiniPlayer shared].onExpand = ^(TBPlaybackSession *s) {
+        TBWatchViewController *watch = [[TBWatchViewController alloc] initWithSession:s];
+        [TBNavigator presentPlayer:watch from:nil];
+    };
+    [[TBMiniPlayer shared] showSession:session];
+    [self dismissViewControllerAnimated:YES completion:nil];
+}
+
 #pragma mark - Captions
 
 - (void)loadCaptions
@@ -897,6 +1110,12 @@ typedef NS_ENUM(NSInteger, TBWatchSection) {
     if (self.fullscreen) { [self playerViewDidTapFullscreen:view]; return; }
     [self teardownPlayback];
     [self dismissViewControllerAnimated:YES completion:nil];
+}
+
+- (void)playerViewDidTapMinimize:(TBPlayerView *)view
+{
+    if (self.fullscreen) [self playerViewDidTapFullscreen:view];
+    [self minimizeToMiniPlayer];
 }
 
 - (void)playerViewDidTapQuality:(TBPlayerView *)view fromView:(UIView *)anchor
@@ -1111,6 +1330,7 @@ typedef NS_ENUM(NSInteger, TBWatchSection) {
         case TBWatchSectionInfo: return 2;
         case TBWatchSectionChannel: return 1;
         case TBWatchSectionDescription: return [self descriptionText].length ? 1 : 0;
+        case TBWatchSectionChapters: return self.chapters.count ? 1 : 0;
         case TBWatchSectionComments: return self.info.commentsToken.length ? 1 : 0;
         case TBWatchSectionRelated: return (NSInteger)self.info.related.count;
         default: return 0;
@@ -1144,6 +1364,7 @@ typedef NS_ENUM(NSInteger, TBWatchSection) {
             CGSize s = [text sizeWithFont:[UIFont systemFontOfSize:13] constrainedToSize:CGSizeMake(width - 24, self.descriptionExpanded ? 20000 : 72) lineBreakMode:NSLineBreakByWordWrapping];
             return MIN(self.descriptionExpanded ? 20000 : 72, ceil(s.height)) + 20;
         }
+        case TBWatchSectionChapters: return 44;
         case TBWatchSectionComments: return 44;
         case TBWatchSectionRelated: return [TBVideoTableCell height];
         default: return 44;
@@ -1249,6 +1470,17 @@ typedef NS_ENUM(NSInteger, TBWatchSection) {
             cell.textLabel.textColor = [t secondaryTextColor];
             return cell;
         }
+        case TBWatchSectionChapters: {
+            UITableViewCell *cell = [[UITableViewCell alloc] initWithStyle:UITableViewCellStyleValue1 reuseIdentifier:nil];
+            [t styleCell:cell];
+            cell.textLabel.text = L(@"Chapters");
+            NSInteger current = [self currentChapterIndex];
+            NSString *now = (current >= 0 && current < (NSInteger)self.chapters.count) ? [(TBChapter *)self.chapters[(NSUInteger)current] title] : nil;
+            cell.detailTextLabel.text = now.length ? now : [NSString stringWithFormat:@"%lu", (unsigned long)self.chapters.count];
+            cell.detailTextLabel.textColor = [t secondaryTextColor];
+            cell.accessoryType = UITableViewCellAccessoryDisclosureIndicator;
+            return cell;
+        }
         case TBWatchSectionComments: {
             UITableViewCell *cell = [[UITableViewCell alloc] initWithStyle:UITableViewCellStyleValue1 reuseIdentifier:nil];
             [t styleCell:cell];
@@ -1281,6 +1513,9 @@ typedef NS_ENUM(NSInteger, TBWatchSection) {
         case TBWatchSectionDescription:
             self.descriptionExpanded = !self.descriptionExpanded;
             [tableView reloadRowsAtIndexPaths:@[ indexPath ] withRowAnimation:UITableViewRowAnimationFade];
+            break;
+        case TBWatchSectionChapters:
+            [self openChapters];
             break;
         case TBWatchSectionComments: {
             TBCommentsViewController *comments = [[TBCommentsViewController alloc] initWithToken:self.info.commentsToken title:L(@"Comments")];

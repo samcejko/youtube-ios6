@@ -37,6 +37,7 @@ NSString * const TBQualityAuto = @"auto";
         @"keepHistory": @YES,
         @"showDislikes": @YES,
         @"verifyTLS": @YES,
+        @"resolverBase": @"https://ytdlp.samcejko.eu/yt",   // the user's Pi yt-dlp resolver, on by default
     }];
 }
 
@@ -113,6 +114,14 @@ NSString * const TBQualityAuto = @"auto";
 
 + (BOOL)verifyTLS { return [DEF boolForKey:@"verifyTLS"]; }
 + (void)setVerifyTLS:(BOOL)value { [DEF setBool:value forKey:@"verifyTLS"]; }
+
++ (NSString *)resolverBase
+{
+    NSString *base = [[DEF stringForKey:@"resolverBase"] stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceAndNewlineCharacterSet]];
+    while ([base hasSuffix:@"/"]) base = [base substringToIndex:base.length - 1];   // no trailing slash
+    return base ?: @"";
+}
++ (void)setResolverBase:(NSString *)value { [DEF setObject:value ?: @"" forKey:@"resolverBase"]; [self notify]; }
 
 #pragma mark - Resume positions
 

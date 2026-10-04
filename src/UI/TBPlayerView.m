@@ -2,6 +2,7 @@
 #import "TBTheme.h"
 #import "TBUtils.h"
 #import "TBCommon.h"
+#import <MediaPlayer/MediaPlayer.h>
 
 static const NSTimeInterval TBControlsHideDelay = 4.0;
 static const CGFloat TBBarHeight = 44;
@@ -14,7 +15,7 @@ static const CGFloat TBBarHeight = 44;
 + (Class)layerClass { return [AVPlayerLayer class]; }
 @end
 
-@interface TBPlayerView ()
+@interface TBPlayerView () <UIGestureRecognizerDelegate>
 @property (nonatomic, strong) TBVideoLayerView *videoView;
 @property (nonatomic, strong) UIView *controls;
 @property (nonatomic, strong) UIImageView *topGradient;
@@ -40,6 +41,24 @@ static const CGFloat TBBarHeight = 44;
 @property (nonatomic) BOOL scrubbing;
 @property (nonatomic) NSTimeInterval duration;
 @property (nonatomic, strong) NSTimer *hideTimer;
+// chapters, gestures, the floating-player button and the brightness/volume HUD
+@property (nonatomic, strong) UIButton *minimizeButton;
+@property (nonatomic, strong) UILabel *chapterLabel;
+@property (nonatomic, strong) UILabel *hudLabel;
+@property (nonatomic, strong) UITapGestureRecognizer *singleTap;
+@property (nonatomic, strong) UITapGestureRecognizer *doubleTap;
+@property (nonatomic, strong) UIPanGestureRecognizer *pan;
+@property (nonatomic, strong) NSArray *chapterFractions;
+@property (nonatomic, strong) NSArray *chapterTitles;
+@property (nonatomic, strong) NSMutableArray *chapterMarkViews;
+@property (nonatomic, strong) NSMutableArray *chapterMarkFractions;
+@property (nonatomic, strong) MPVolumeView *volumeView;
+@property (nonatomic, strong) UISlider *systemVolumeSlider;
+@property (nonatomic) BOOL panActive;
+@property (nonatomic) BOOL panIgnore;
+@property (nonatomic) BOOL panIsVolume;
+@property (nonatomic) CGFloat panStartValue;
+@property (nonatomic, strong) NSTimer *hudTimer;
 @end
 
 @implementation TBPlayerView
@@ -162,8 +181,51 @@ static const CGFloat TBBarHeight = 44;
         _retryButton.hidden = YES;
         [self addSubview:_retryButton];
 
-        UITapGestureRecognizer *tap = [[UITapGestureRecognizer alloc] initWithTarget:self action:@selector(tapped:)];
-        [self addGestureRecognizer:tap];
+        _minimizeButton = [self iconButtonWithImage:[t minimizeChevronWhite] action:@selector(minimizeTapped)];
+        _minimizeButton.accessibilityLabel = L(@"Minimize");
+        _minimizeButton.hidden = YES;
+
+        _chapterLabel = [[UILabel alloc] initWithFrame:CGRectZero];
+        _chapterLabel.backgroundColor = [UIColor clearColor];
+        _chapterLabel.textColor = [UIColor whiteColor];
+        _chapterLabel.font = [UIFont boldSystemFontOfSize:11];
+        _chapterLabel.shadowColor = [UIColor colorWithWhite:0 alpha:0.7];
+        _chapterLabel.shadowOffset = CGSizeMake(0, 1);
+        _chapterLabel.lineBreakMode = NSLineBreakByTruncatingTail;
+        _chapterLabel.hidden = YES;
+        [_controls addSubview:_chapterLabel];
+        _chapterMarkViews = [NSMutableArray array];
+        _chapterMarkFractions = [NSMutableArray array];
+
+        _hudLabel = [[UILabel alloc] initWithFrame:CGRectZero];
+        _hudLabel.backgroundColor = [UIColor colorWithWhite:0 alpha:0.6];
+        _hudLabel.textColor = [UIColor whiteColor];
+        _hudLabel.font = [UIFont boldSystemFontOfSize:15];
+        _hudLabel.textAlignment = NSTextAlignmentCenter;
+        _hudLabel.layer.cornerRadius = 6;
+        _hudLabel.clipsToBounds = YES;
+        _hudLabel.hidden = YES;
+        [self addSubview:_hudLabel];
+
+        // an off-screen system volume control: setting its slider moves the volume without the system HUD appearing
+        _volumeView = [[MPVolumeView alloc] initWithFrame:CGRectMake(0, 0, 1, 1)];
+        _volumeView.alpha = 0.02;
+        _volumeView.userInteractionEnabled = NO;
+        [self insertSubview:_volumeView atIndex:0];
+
+        _singleTap = [[UITapGestureRecognizer alloc] initWithTarget:self action:@selector(tapped:)];
+        [self addGestureRecognizer:_singleTap];
+        _doubleTap = [[UITapGestureRecognizer alloc] initWithTarget:self action:@selector(doubleTapped:)];
+        _doubleTap.numberOfTapsRequired = 2;
+        _doubleTap.enabled = NO;
+        [self addGestureRecognizer:_doubleTap];
+        [_singleTap requireGestureRecognizerToFail:_doubleTap];
+        _pan = [[UIPanGestureRecognizer alloc] initWithTarget:self action:@selector(handlePan:)];
+        _pan.delegate = self;
+        _pan.enabled = NO;
+        _pan.maximumNumberOfTouches = 1;
+        [self addGestureRecognizer:_pan];
+
         _controlsVisible = YES;
         _isLive = YES;
         [self updateModeViews];
@@ -174,6 +236,7 @@ static const CGFloat TBBarHeight = 44;
 - (void)dealloc
 {
     [_hideTimer invalidate];
+    [_hudTimer invalidate];
 }
 
 - (UIButton *)iconButtonWithImage:(UIImage *)image action:(SEL)action
@@ -279,6 +342,7 @@ static const CGFloat TBBarHeight = 44;
     if (!self.scrubbing) {
         self.slider.value = (float)MAX(0, MIN(1, fraction));
         self.timeLabel.text = [NSString stringWithFormat:@"%@ / %@", [TBUtils formatDuration:position], [TBUtils formatDuration:duration]];
+        [self updateChapterLabelForFraction:fraction];
     }
 }
 
@@ -351,6 +415,7 @@ static const CGFloat TBBarHeight = 44;
     if (self.duration > 0) {
         self.timeLabel.text = [NSString stringWithFormat:@"%@ / %@", [TBUtils formatDuration:self.slider.value * self.duration], [TBUtils formatDuration:self.duration]];
     }
+    [self updateChapterLabelForFraction:self.slider.value];
 }
 
 - (void)sliderTouchUp
@@ -358,6 +423,189 @@ static const CGFloat TBBarHeight = 44;
     self.scrubbing = NO;
     [self.delegate playerView:self didSeekToFraction:self.slider.value];
     [self showControls:YES animated:NO];
+}
+
+- (void)minimizeTapped
+{
+    if ([self.delegate respondsToSelector:@selector(playerViewDidTapMinimize:)]) [self.delegate playerViewDidTapMinimize:self];
+}
+
+#pragma mark - Minimize button visibility
+
+- (void)setDelegate:(id<TBPlayerViewDelegate>)delegate
+{
+    _delegate = delegate;
+    [self updateMinimizeVisibility];
+}
+
+- (void)setMinimizeButtonHidden:(BOOL)minimizeButtonHidden
+{
+    _minimizeButtonHidden = minimizeButtonHidden;
+    [self updateMinimizeVisibility];
+}
+
+- (void)updateMinimizeVisibility
+{
+    BOOL responds = [self.delegate respondsToSelector:@selector(playerViewDidTapMinimize:)];
+    self.minimizeButton.hidden = !(responds && !self.minimizeButtonHidden);
+    [self setNeedsLayout];
+}
+
+#pragma mark - Chapters
+
+- (void)setChapterFractions:(NSArray *)fractions titles:(NSArray *)titles
+{
+    self.chapterFractions = fractions;
+    self.chapterTitles = titles;
+    for (UIView *v in self.chapterMarkViews) [v removeFromSuperview];
+    [self.chapterMarkViews removeAllObjects];
+    [self.chapterMarkFractions removeAllObjects];
+    for (NSUInteger i = 0; i < fractions.count; i++) {
+        double f = [fractions[i] doubleValue];
+        if (f <= 0.001 || f >= 0.999) continue;   // the 0:00 start and anything at the very end need no mark
+        UIView *tick = [[UIView alloc] initWithFrame:CGRectZero];
+        tick.backgroundColor = [UIColor colorWithWhite:1 alpha:0.85];
+        tick.userInteractionEnabled = NO;
+        [self.controls addSubview:tick];
+        [self.chapterMarkViews addObject:tick];
+        [self.chapterMarkFractions addObject:@(f)];
+    }
+    self.chapterLabel.hidden = (titles.count == 0) || self.isLive;
+    [self updateChapterLabelForFraction:self.slider.value];
+    [self setNeedsLayout];
+}
+
+- (void)updateChapterLabelForFraction:(double)fraction
+{
+    if (!self.chapterTitles.count || self.isLive) { self.chapterLabel.text = @""; return; }
+    NSInteger idx = 0;
+    for (NSUInteger i = 0; i < self.chapterFractions.count; i++) {
+        if (fraction + 1e-6 >= [self.chapterFractions[i] doubleValue]) idx = (NSInteger)i; else break;
+    }
+    NSString *title = self.chapterTitles[(NSUInteger)idx];
+    if (![title isEqualToString:self.chapterLabel.text]) self.chapterLabel.text = title;
+}
+
+#pragma mark - Gestures
+
+- (void)setAdvancedGesturesEnabled:(BOOL)advancedGesturesEnabled
+{
+    _advancedGesturesEnabled = advancedGesturesEnabled;
+    self.doubleTap.enabled = advancedGesturesEnabled;
+    self.pan.enabled = advancedGesturesEnabled;
+}
+
+- (void)doubleTapped:(UITapGestureRecognizer *)gesture
+{
+    if (!self.advancedGesturesEnabled || self.isLive) return;
+    CGPoint p = [gesture locationInView:self];
+    if (p.y < self.topInset + TBBarHeight || p.y > self.bounds.size.height - TBBarHeight) return;  // the bars own their taps
+    BOOL forward = p.x > self.bounds.size.width / 2;
+    [self.delegate playerView:self didSkipSeconds:forward ? 10 : -10];
+    [self showHUD:forward ? @"+10 s" : @"-10 s"];
+    [self hideHUDAfterDelay];
+}
+
+- (void)handlePan:(UIPanGestureRecognizer *)gesture
+{
+    if (!self.advancedGesturesEnabled) return;
+    CGPoint t = [gesture translationInView:self];
+    switch (gesture.state) {
+        case UIGestureRecognizerStateBegan:
+            self.panActive = NO;
+            self.panIgnore = NO;
+            break;
+        case UIGestureRecognizerStateChanged: {
+            if (self.panIgnore) return;
+            if (!self.panActive) {
+                if (fabs(t.y) > 10 && fabs(t.y) > fabs(t.x)) {
+                    self.panActive = YES;
+                    CGPoint start = [gesture locationInView:self];
+                    self.panIsVolume = start.x > self.bounds.size.width / 2;
+                    self.panStartValue = self.panIsVolume ? [self systemVolume] : [UIScreen mainScreen].brightness;
+                } else if (fabs(t.x) > 10) {
+                    self.panIgnore = YES;   // a horizontal drag is not ours
+                    return;
+                } else {
+                    return;
+                }
+            }
+            CGFloat range = MAX(120.0, self.bounds.size.height * 0.75);
+            CGFloat value = MAX(0, MIN(1, self.panStartValue + (-t.y / range)));   // drag up raises
+            if (self.panIsVolume) [self setSystemVolume:value];
+            else [UIScreen mainScreen].brightness = value;
+            [self showHUD:[NSString stringWithFormat:@"%@ %d%%", self.panIsVolume ? @"\U0001F50A" : @"☀", (int)round(value * 100)]];
+            break;
+        }
+        case UIGestureRecognizerStateEnded:
+        case UIGestureRecognizerStateCancelled:
+        case UIGestureRecognizerStateFailed:
+            self.panActive = NO;
+            self.panIgnore = NO;
+            [self hideHUDAfterDelay];
+            break;
+        default:
+            break;
+    }
+}
+
+- (BOOL)gestureRecognizer:(UIGestureRecognizer *)gestureRecognizer shouldReceiveTouch:(UITouch *)touch
+{
+    if (gestureRecognizer == self.pan) {
+        if (!self.advancedGesturesEnabled) return NO;
+        if ([touch.view isKindOfClass:[UIControl class]]) return NO;   // the slider and the buttons keep their touches
+        CGPoint p = [touch locationInView:self];
+        if (p.y > self.bounds.size.height - TBBarHeight) return NO;    // the scrubber row
+        if (p.y < self.topInset + TBBarHeight) return NO;              // the top bar
+    }
+    return YES;
+}
+
+#pragma mark - Brightness / volume HUD
+
+- (UISlider *)findVolumeSlider
+{
+    if (self.systemVolumeSlider) return self.systemVolumeSlider;
+    for (UIView *v in self.volumeView.subviews) if ([v isKindOfClass:[UISlider class]]) { self.systemVolumeSlider = (UISlider *)v; break; }
+    return self.systemVolumeSlider;
+}
+
+- (CGFloat)systemVolume
+{
+    UISlider *slider = [self findVolumeSlider];
+    if (slider) return slider.value;
+    return [AVAudioSession sharedInstance].outputVolume;
+}
+
+- (void)setSystemVolume:(CGFloat)volume
+{
+    UISlider *slider = [self findVolumeSlider];
+    if (!slider) return;
+    [slider setValue:(float)volume animated:NO];
+    [slider sendActionsForControlEvents:UIControlEventValueChanged];
+}
+
+- (void)showHUD:(NSString *)text
+{
+    [self.hudTimer invalidate];
+    self.hudTimer = nil;
+    self.hudLabel.text = text;
+    [self.hudLabel sizeToFit];
+    CGFloat w = self.hudLabel.bounds.size.width + 28, h = 34;
+    self.hudLabel.frame = CGRectMake(floor((self.bounds.size.width - w) / 2), floor((self.bounds.size.height - h) / 2), w, h);
+    self.hudLabel.hidden = NO;
+    self.hudLabel.alpha = 1;
+}
+
+- (void)hideHUDAfterDelay
+{
+    [self.hudTimer invalidate];
+    self.hudTimer = [NSTimer scheduledTimerWithTimeInterval:0.6 target:self selector:@selector(fadeHUD) userInfo:nil repeats:NO];
+}
+
+- (void)fadeHUD
+{
+    [UIView animateWithDuration:0.25 animations:^{ self.hudLabel.alpha = 0; } completion:^(BOOL finished) { self.hudLabel.hidden = YES; }];
 }
 
 #pragma mark - Layout
@@ -375,9 +623,13 @@ static const CGFloat TBBarHeight = 44;
 
     // top bar
     self.closeButton.frame = CGRectMake(4, top + 2, 40, 40);
+    CGFloat textX = 48;
+    if (!self.minimizeButton.hidden) {
+        self.minimizeButton.frame = CGRectMake(48, top + 2, 40, 40);
+        textX = 92;
+    }
     CGFloat qualityW = self.qualityButton.hidden ? 0 : ceil([self.qualityButton.currentTitle sizeWithFont:self.qualityButton.titleLabel.font].width) + 16;
     self.qualityButton.frame = CGRectMake(b.size.width - 8 - qualityW, top + 11, qualityW, 22);
-    CGFloat textX = 48;
     CGFloat textW = CGRectGetMinX(self.qualityButton.frame) - 8 - textX;
     self.titleLabel.frame = CGRectMake(textX, top + 4, textW, 20);
     self.subtitleButton.frame = CGRectMake(textX, top + 24, textW, 16);
@@ -410,6 +662,20 @@ static const CGFloat TBBarHeight = 44;
         rightX -= timeW + 6;
         self.slider.frame = CGRectMake(x, y + 7, MAX(0, rightX - x), 30);
         self.statusLabel.frame = CGRectZero;
+    }
+    // chapters drawn over the scrubber (videos only)
+    if (!self.isLive) {
+        CGRect sf = self.slider.frame;
+        CGFloat trackX = sf.origin.x + 2, trackW = MAX(1, sf.size.width - 4);
+        CGFloat cy = sf.origin.y + sf.size.height / 2;
+        for (NSUInteger i = 0; i < self.chapterMarkViews.count; i++) {
+            UIView *tick = self.chapterMarkViews[i];
+            tick.frame = CGRectMake(floor(trackX + trackW * [self.chapterMarkFractions[i] doubleValue]) - 1, cy - 4, 2, 8);
+            tick.hidden = NO;
+        }
+        self.chapterLabel.frame = CGRectMake(sf.origin.x, sf.origin.y - 16, sf.size.width, 14);
+    } else {
+        for (UIView *tick in self.chapterMarkViews) tick.hidden = YES;
     }
     self.adLabel.frame = CGRectMake(b.size.width - 50, top + TBBarHeight + 8, 40, 18);
     self.spinner.center = CGPointMake(b.size.width / 2, b.size.height / 2);

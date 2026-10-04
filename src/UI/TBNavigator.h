@@ -7,6 +7,8 @@
 
 + (void)openVideo:(TBVideo *)video from:(UIViewController *)controller;
 + (void)openVideoId:(NSString *)videoId from:(UIViewController *)controller;
+// Presents an already-built player screen (e.g. the watch screen that adopts the mini player's live session)
++ (void)presentPlayer:(UIViewController *)player from:(UIViewController *)controller;
 + (void)openShorts:(NSArray *)videos startingAt:(NSUInteger)index from:(UIViewController *)controller;
 + (void)openChannel:(TBChannel *)channel from:(UIViewController *)controller;
 + (void)openChannelId:(NSString *)channelId from:(UIViewController *)controller;

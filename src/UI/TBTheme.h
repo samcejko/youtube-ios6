@@ -61,6 +61,7 @@
 - (UIImage *)gearIconWhite;
 - (UIImage *)closeIconWhite;
 - (UIImage *)backChevronWhite;
+- (UIImage *)minimizeChevronWhite;          // downward chevron: minimise the player to the floating mini bar
 - (UIImage *)replayIcon;                    // circular arrow, for a stream that ended
 - (UIImage *)skipIconForward:(BOOL)forward;
 // misc

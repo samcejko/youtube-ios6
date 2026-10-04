@@ -52,6 +52,12 @@ extern NSString * const TBQualityAuto;      // the player switches between what 
 + (BOOL)verifyTLS;
 + (void)setVerifyTLS:(BOOL)value;
 
+// YouTube resolver (yt-dlp) that hands the app fresh, fully playable streams for videos that would otherwise be stuck
+// at 360p. Defaults to the author's Pi (https://ytdlp.samcejko.eu/yt); "" turns it off. Base URL only; the app appends
+// "/resolve". The request carries only the video id - no account, nothing personal.
++ (NSString *)resolverBase;
++ (void)setResolverBase:(NSString *)value;
+
 // Resume positions of videos: seconds by video id (the last 300 are kept)
 + (NSTimeInterval)resumePositionForVideo:(NSString *)videoId;
 + (void)setResumePosition:(NSTimeInterval)seconds forVideo:(NSString *)videoId;

@@ -196,20 +196,10 @@ static NSDictionary *TBParseAttributes(NSString *list)
         }];
     };
 
-    // step 1: the iOS client (videos get their HLS here; most of them only the adaptive MP4 files, which the proxy
-    // can remux into the same kind of stream)
-    inner = [TBInnertube player:videoId client:TBClientIOS completion:^(TBPlayerInfo *info, NSError *error) {
-        if (outer.isCancelled) return;
-        if (error) { completion(nil, error); return; }
-        source.info = info;
-        source.isLive = info.isLive;
-        if (info.progressiveURL.length) { source.progressiveURL = info.progressiveURL; source.progressiveHeight = info.progressiveHeight; }
-        if (![info.status isEqualToString:@"OK"]) { askAndroid(); return; }   // (the other client may be luckier)
-        if (info.isLive || preferProgressive) { askAndroid(); return; }
-        if (info.hlsManifestURL.length) { finishWithHLS(info.hlsManifestURL, TBClientIOS); return; }
-        // (without a PO token YouTube serves only the first minute or so of an adaptive file: the remux is for
-        // shorts and clips; longer videos get the plain MP4 - see TBRemuxMaxSeconds)
-        NSArray *variants = info.lengthSeconds > 0 && info.lengthSeconds <= TBRemuxMaxSeconds ? [self remuxVariantsForInfo:info] : @[];
+    // the iOS client's adaptive MP4s as a remuxed stream - but only up to TBRemuxMaxSeconds, since without a PO token
+    // their URLs die after ~60 s; longer videos fall through to the Android progressive MP4
+    void (^shortRemuxOrAndroid)(TBPlayerInfo *) = ^(TBPlayerInfo *info) {
+        NSArray *variants = (info.lengthSeconds > 0 && info.lengthSeconds <= TBRemuxMaxSeconds) ? [self remuxVariantsForInfo:info] : @[];
         if (variants.count) {
             source.variants = variants;
             TBAudioRendition *sound = [[TBAudioRendition alloc] init];
@@ -222,8 +212,74 @@ static NSDictionary *TBParseAttributes(NSString *list)
             return;
         }
         askAndroid();
+    };
+
+    // the resolver (yt-dlp on the user's computer / the Pi, address in Settings) hands back fresh, fully-serving URLs
+    // keyed by itag. The app keeps the sidx byte ranges it already parsed from its own InnerTube for each itag and
+    // just swaps in these URLs, so the proxy can remux the WHOLE video at up to 1080p - no 60 s wall. Off by default.
+    void (^resolverThenRemux)(TBPlayerInfo *) = ^(TBPlayerInfo *info) {
+        NSString *base = [TBSettings resolverBase];
+        if (!base.length || info.isLive || !info.dashVideo.count || !info.dashAudio) { shortRemuxOrAndroid(info); return; }
+        NSString *url = [NSString stringWithFormat:@"%@/resolve?id=%@", base, [TBUtils urlEncode:videoId]];
+        inner = [TBHTTP request:@"GET" url:url headers:nil body:nil retries:0 completion:^(NSInteger status, NSData *data, NSDictionary *headers, NSError *error) {
+            if (outer.isCancelled) return;
+            NSDictionary *j = (status == 200 && data.length) ? TBDict([TBUtils JSONObjectFromData:data]) : nil;
+            if ([self patchDashFormatsIn:info withResolverFormats:TBDict(j[@"formats"])]) {
+                NSArray *variants = [self remuxVariantsForInfo:info];
+                if (variants.count) {
+                    source.variants = variants;
+                    TBAudioRendition *sound = [[TBAudioRendition alloc] init];
+                    sound.groupId = @"dash";
+                    sound.name = info.dashAudio.audioTrackName.length ? info.dashAudio.audioTrackName : @"Default";
+                    sound.url = info.dashAudio.url;
+                    sound.dash = info.dashAudio;
+                    source.audioRenditions = @[ sound ];
+                    TBLog(@"Resolver remux: %lu renditions for %@ (%.0fs, full length)", (unsigned long)variants.count, videoId, info.lengthSeconds);
+                    completion(source, nil);
+                    return;
+                }
+            }
+            TBLog(@"Resolver: no usable formats for %@ (%@), falling back", videoId, error ? error.localizedDescription : [NSString stringWithFormat:@"HTTP %ld", (long)status]);
+            shortRemuxOrAndroid(info);
+        }];
+    };
+
+    // step 1: the iOS client (videos get their HLS here; most of them only the adaptive MP4 files, which the proxy
+    // can remux into the same kind of stream)
+    inner = [TBInnertube player:videoId client:TBClientIOS completion:^(TBPlayerInfo *info, NSError *error) {
+        if (outer.isCancelled) return;
+        if (error) { completion(nil, error); return; }
+        source.info = info;
+        source.isLive = info.isLive;
+        if (info.progressiveURL.length) { source.progressiveURL = info.progressiveURL; source.progressiveHeight = info.progressiveHeight; }
+        if (![info.status isEqualToString:@"OK"]) { askAndroid(); return; }   // (the other client may be luckier)
+        if (info.isLive || preferProgressive) { askAndroid(); return; }
+        if (info.hlsManifestURL.length) { finishWithHLS(info.hlsManifestURL, TBClientIOS); return; }
+        // the resolver (if its address is set) remuxes the whole video at full quality; otherwise only short clips
+        // remux and longer videos fall back to the Android progressive MP4 (un-tokened adaptive URLs die after ~60 s)
+        resolverThenRemux(info);
     }];
     return outer;
+}
+
+// Swaps the (PO-token-capped) URLs of the iOS client's adaptive formats for the resolver's fresh, fully-serving URLs,
+// matched by itag. The sidx byte ranges stay as they were - for a given video and itag the file is identical, only
+// the signed URL differs - so the proxy's remux works over the whole file. YES when video and audio were both
+// matched (audio is mandatory; video renditions are trimmed to those that matched).
++ (BOOL)patchDashFormatsIn:(TBPlayerInfo *)info withResolverFormats:(NSDictionary *)formats
+{
+    if (!formats.count || !info.dashAudio) return NO;
+    NSString *audioURL = TBStr(formats[[NSString stringWithFormat:@"%ld", (long)info.dashAudio.itag]]);
+    if (!audioURL.length) return NO;   // no fresh audio of the right itag -> cannot remux
+    info.dashAudio.url = audioURL;
+    NSMutableArray *kept = [NSMutableArray array];
+    for (TBDashFormat *d in info.dashVideo) {
+        NSString *u = TBStr(formats[[NSString stringWithFormat:@"%ld", (long)d.itag]]);
+        if (u.length) { d.url = u; [kept addObject:d]; }
+    }
+    if (!kept.count) return NO;
+    info.dashVideo = kept;
+    return YES;
 }
 
 // The adaptive MP4 files as renditions (the proxy converts them), the device's limits applied, highest first

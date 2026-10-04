@@ -281,3 +281,51 @@ long long TBNumberFromText(NSString *text)
 
 @implementation TBWatchInfo
 @end
+
+#pragma mark - Chapters
+
+@implementation TBChapter
+
++ (instancetype)chapterWithStart:(NSTimeInterval)start title:(NSString *)title
+{
+    TBChapter *c = [[TBChapter alloc] init];
+    c.start = start;
+    c.title = title;
+    return c;
+}
+
++ (NSArray *)chaptersFromDescription:(NSString *)description duration:(NSTimeInterval)duration
+{
+    if (description.length < 7) return nil;
+    // a timestamp anywhere on a line: 0:00, 1:23, 1:02:03
+    static NSRegularExpression *re = nil;
+    static dispatch_once_t once;
+    dispatch_once(&once, ^{ re = [NSRegularExpression regularExpressionWithPattern:@"(?:(\\d{1,2}):)?(\\d{1,2}):(\\d{2})" options:0 error:NULL]; });
+    NSCharacterSet *trim = [NSCharacterSet characterSetWithCharactersInString:@" \t-–—:.|)]•"];
+    NSMutableArray *chapters = [NSMutableArray array];
+    NSTimeInterval last = -1;
+    for (NSString *rawLine in [description componentsSeparatedByCharactersInSet:[NSCharacterSet newlineCharacterSet]]) {
+        NSString *line = [rawLine stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceCharacterSet]];
+        if (line.length < 4) continue;
+        NSTextCheckingResult *m = [re firstMatchInString:line options:0 range:NSMakeRange(0, line.length)];
+        if (!m) continue;
+        NSInteger h = 0;
+        NSRange hr = [m rangeAtIndex:1];
+        if (hr.location != NSNotFound) h = [[line substringWithRange:hr] integerValue];
+        NSInteger mi = [[line substringWithRange:[m rangeAtIndex:2]] integerValue];
+        NSInteger s = [[line substringWithRange:[m rangeAtIndex:3]] integerValue];
+        if (s >= 60) continue;
+        NSTimeInterval start = h * 3600 + mi * 60 + s;
+        if (chapters.count == 0) { if (start > 1) continue; }   // the list opens at 0:00
+        else if (start <= last) continue;                        // a stray or out-of-order timestamp
+        if (duration > 0 && start > duration) continue;
+        NSString *title = [[line stringByReplacingCharactersInRange:m.range withString:@""] stringByTrimmingCharactersInSet:trim];
+        if (!title.length) title = [NSString stringWithFormat:@"%ld", (long)(chapters.count + 1)];
+        [chapters addObject:[TBChapter chapterWithStart:start title:title]];
+        last = start;
+        if (chapters.count >= 100) break;
+    }
+    return chapters.count >= 3 ? chapters : nil;
+}
+
+@end

@@ -557,6 +557,23 @@ static UIImage *TBDrawImage(CGSize size, void (^draw)(CGContextRef ctx))
     }];
 }
 
+- (UIImage *)minimizeChevronWhite
+{
+    return [self cachedImage:@"minimize-white" builder:^UIImage *{
+        return TBDrawImage(CGSizeMake(24, 24), ^(CGContextRef ctx) {
+            UIBezierPath *p = [UIBezierPath bezierPath];
+            [p moveToPoint:CGPointMake(5, 9)];
+            [p addLineToPoint:CGPointMake(12, 16)];
+            [p addLineToPoint:CGPointMake(19, 9)];
+            p.lineWidth = 3.5;
+            p.lineCapStyle = kCGLineCapRound;
+            p.lineJoinStyle = kCGLineJoinRound;
+            [[UIColor whiteColor] setStroke];
+            [p stroke];
+        });
+    }];
+}
+
 - (UIImage *)replayIcon
 {
     return [self cachedImage:@"replay" builder:^UIImage *{

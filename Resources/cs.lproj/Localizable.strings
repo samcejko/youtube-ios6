@@ -20,6 +20,7 @@
 "Watch later" = "Přehrát později";
 "Up next" = "Další videa";
 "Continue watching" = "Pokračovat ve sledování";
+"Recommended" = "Doporučeno";
 "Music" = "Hudba";
 "News" = "Zprávy";
 "Sports" = "Sport";
@@ -63,6 +64,8 @@
 /* Player */
 "Quality" = "Kvalita";
 "Speed" = "Rychlost";
+"Chapters" = "Kapitoly";
+"Minimize" = "Minimalizovat";
 "Captions" = "Titulky";
 "CC" = "CC";
 "CC ✓" = "CC ✓";
@@ -246,6 +249,5 @@
 "No liked videos." = "Žádná oblíbená videa.";
 "No playlists." = "Žádné playlisty.";
 "Your account follows no channels yet." = "Tvůj účet zatím neodebírá žádné kanály.";
-"Recommended" = "Doporučeno";
 
 "Turn certificate verification off only if the device clock is wrong or the certificate bundle is outdated." = "Ověřování certifikátů vypni jen tehdy, když jdou hodiny zařízení špatně nebo je balík certifikátů zastaralý.";

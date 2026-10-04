@@ -178,6 +178,15 @@
 @property (nonatomic, copy) NSString *commentCountText;     // "1.2K"
 @end
 
+// A chapter of a video, read from the timestamps in its description ("0:00 Intro", "1:23 - Topic")
+@interface TBChapter : NSObject
+@property (nonatomic) NSTimeInterval start;
+@property (nonatomic, copy) NSString *title;
++ (instancetype)chapterWithStart:(NSTimeInterval)start title:(NSString *)title;
+// The chapters of a description (YouTube's rule: three or more, the first at 0:00, increasing); nil when there are none
++ (NSArray *)chaptersFromDescription:(NSString *)description duration:(NSTimeInterval)duration;
+@end
+
 // Text helpers for InnerTube JSON (also used by the parsers of other classes)
 NSString *TBText(id node);                                  // {"simpleText"}, {"runs":[{"text"}]}, {"content"} or a string
 NSString *TBThumbnailURL(id node);                          // the largest of {"thumbnails":[{url,width}]} or {"sources":[...]}

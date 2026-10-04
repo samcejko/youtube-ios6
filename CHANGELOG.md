@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.3.0 (2026-10-04)
+
+- Chapters: a video whose description lists timestamps now shows chapter marks on the scrubber, the current chapter's
+  name above it, and a "Chapters" row on the watch page that opens the list and jumps to any part.
+- Player gestures: double-tap the left or right half of the picture to skip 10 seconds back or forward; drag up and
+  down on the left half for screen brightness, on the right half for volume.
+- Mini player: a button at the top of the player shrinks the video to a small floating bar, so you can keep browsing
+  while it plays on; tap the bar to open the video again, the X to close it. (Not for live streams.)
+- Optional stream resolver (experimental): point the app at a yt-dlp helper (on the Pi behind the existing tunnel, or
+  `tools/ytresolve.py` on any computer) and the long videos that otherwise fall back to 360p are remuxed at up to
+  1080p from fresh, fully-serving stream URLs. Off by default; set the address with the
+  `tubie:resolver?url=https://ytdlp.samcejko.eu/yt` debug command (the app appends `/resolve`).
+
 ## 0.2.2 (2026-10-03)
 
 - Adaptive videos were stuck at 480p: "Automatic" quality now starts at 720p (iOS 6's player hardly climbs once it

@@ -13,6 +13,8 @@
 - (void)playerView:(TBPlayerView *)view didSeekToFraction:(double)fraction;    // videos and clips
 - (void)playerView:(TBPlayerView *)view didSkipSeconds:(double)seconds;        // -10 / +10
 - (void)playerViewDidTapGoLive:(TBPlayerView *)view;                            // live: back to the live edge
+@optional
+- (void)playerViewDidTapMinimize:(TBPlayerView *)view;                          // shrink to the floating mini player
 @end
 
 // The video (AVPlayerLayer) with the controls drawn over it: a top bar with the title and the quality, a bottom bar
@@ -45,5 +47,13 @@
 @property (nonatomic, readonly) BOOL controlsVisible;
 @property (nonatomic) BOOL controlsLocked;           // stay visible (while paused, while an error shows)
 @property (nonatomic) CGFloat topInset;              // room for the status bar
+
+// Double-tap to skip, a vertical drag for brightness (left) / volume (right). Off by default (shorts keep their own
+// swipe); the watch screen turns it on.
+@property (nonatomic) BOOL advancedGesturesEnabled;
+@property (nonatomic) BOOL minimizeButtonHidden;     // the watch screen hides it for live streams
+
+// The chapters' boundaries as fractions of the duration (0..1) and their titles; nil clears them
+- (void)setChapterFractions:(NSArray *)fractions titles:(NSArray *)titles;
 
 @end
