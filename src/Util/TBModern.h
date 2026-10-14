@@ -18,9 +18,14 @@ void TBModernSetUp(UIBarStyle defaultBarStyle);
 void TBModernSetUpWithoutSkin(void);
 
 // An app's own bar artwork, set the way each iOS wants it (with the appearance objects iOS 13-15 need, or else the
-// bar turns transparent at the top of a list). titleAttributes may be nil. No-ops on iOS 6.
-void TBModernApplyNavigationBarBackground(UINavigationBar *bar, UIImage *image, NSDictionary *titleAttributes);
+// bar turns transparent at the top of a list). The bar may be the appearance proxy. The title attributes (NS* keys)
+// and the bar buttons' images and title attributes may be nil. No-ops on iOS 6.
+void TBModernApplyNavigationBarBackground(UINavigationBar *bar, UIImage *image, NSDictionary *titleAttributes,
+                                             UIImage *buttonImage, UIImage *buttonImageHighlighted, NSDictionary *buttonTitleAttributes);
 void TBModernApplyTabBarBackground(UITabBar *bar, UIImage *image);
+
+// The text field inside a search bar (iOS 13 names it; before that it is found among the subviews), or nil.
+UITextField *TBModernSearchBarTextField(UISearchBar *bar);
 
 // A scroll view that pages over the whole screen (a feed, a gallery): keeps iOS 11+ from adding the safe area
 // to its insets, which would throw the paging off.
