@@ -188,11 +188,14 @@ static void *TBShortStatusContext = &TBShortStatusContext;
 - (BOOL)shouldAutorotate { return YES; }
 - (UIInterfaceOrientationMask)supportedInterfaceOrientations { return TBIsPad() ? UIInterfaceOrientationMaskAll : UIInterfaceOrientationMaskAllButUpsideDown; }
 
-// iOS 7 and newer (never called on iOS 6): no status bar over the video; the swipe up for the next short must not
-// be taken for the home gesture of iOS 11+ (it needs a second swipe then), and the home indicator fades away
+// iOS 7 and newer (never called on iOS 6): no status bar over the video
 - (BOOL)prefersStatusBarHidden { return YES; }
+#if __IPHONE_OS_VERSION_MAX_ALLOWED >= 110000
+// iOS 11 and newer: the swipe up for the next short must not be taken for the home gesture (it needs a second swipe
+// then), and the home indicator fades away
 - (UIRectEdge)preferredScreenEdgesDeferringSystemGestures { return UIRectEdgeBottom; }
 - (BOOL)prefersHomeIndicatorAutoHidden { return YES; }
+#endif
 
 - (void)viewWillLayoutSubviews
 {
