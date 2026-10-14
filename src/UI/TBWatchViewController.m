@@ -29,6 +29,10 @@ static void *TBKeepUpContext = &TBKeepUpContext;
 static const NSTimeInterval TBStallReloadAfter = 25;
 static const NSInteger TBMaxAutomaticReloads = 3;
 
+// The speeds the menu offers (AVPlayer plays 0.5x to 2x on every iOS version)
+static const float TBSpeeds[] = { 0.5f, 0.75f, 1.0f, 1.25f, 1.5f, 1.75f, 2.0f };
+static const NSUInteger TBSpeedCount = sizeof(TBSpeeds) / sizeof(TBSpeeds[0]);
+
 typedef NS_ENUM(NSInteger, TBWatchSection) {
     TBWatchSectionInfo = 0,       // title + meta, actions
     TBWatchSectionChannel,
@@ -230,7 +234,8 @@ typedef NS_ENUM(NSInteger, TBWatchSection) {
 @property (nonatomic) NSTimeInterval skipNoteUntil;
 @property (nonatomic) double lastSkippedEnd;
 @property (nonatomic, strong) NSTimer *tickTimer;
-@property (nonatomic) float playbackRate;
+@property (nonatomic) float playbackRate;        // the chosen speed (TBSettings keeps it for the next videos)
+@property (nonatomic) BOOL holdingFast;          // a finger held on the picture: 2x until it lets go
 @property (nonatomic) NSInteger pendingSheet;    // 1 quality, 2 share, 3 rate
 @property (nonatomic, strong) NSArray *chapters;         // TBChapter, parsed from the description
 @property (nonatomic, strong) TBPlaybackSession *sessionToAdopt;   // set by initWithSession: before the view loads
@@ -245,7 +250,7 @@ typedef NS_ENUM(NSInteger, TBWatchSection) {
         _video = video;
         _quality = [TBSettings preferredQuality];
         _pendingSeek = -1;
-        _playbackRate = 1;
+        _playbackRate = [TBSettings playbackRate];
         _wantsToPlay = YES;
         self.wantsFullScreenLayout = YES;
     }
@@ -259,7 +264,7 @@ typedef NS_ENUM(NSInteger, TBWatchSection) {
         _video = session.video;
         _quality = session.quality ?: [TBSettings preferredQuality];
         _pendingSeek = -1;
-        _playbackRate = 1;
+        _playbackRate = session.playbackRate > 0.01f ? session.playbackRate : [TBSettings playbackRate];
         _wantsToPlay = session.wantsToPlay;
         self.wantsFullScreenLayout = YES;
         _sessionToAdopt = session;
@@ -462,6 +467,7 @@ typedef NS_ENUM(NSInteger, TBWatchSection) {
     self.playerView.qualityTitle = @"";
     self.playerView.statusText = @"";
     self.playerView.minimizeButtonHidden = video.isLive;
+    [self updateSpeedTitle];
     self.info = nil;
     self.votes = nil;
     self.sponsorSegments = nil;
@@ -485,6 +491,7 @@ typedef NS_ENUM(NSInteger, TBWatchSection) {
     [self teardownPlayback];
     self.wantsToPlay = YES;
     self.ended = NO;
+    self.holdingFast = NO;
     self.pendingSeek = -1;
     self.tickTimer = [NSTimer scheduledTimerWithTimeInterval:0.5 target:self selector:@selector(tick) userInfo:nil repeats:YES];
     [self startWithVideo:video];
@@ -570,6 +577,7 @@ typedef NS_ENUM(NSInteger, TBWatchSection) {
         s.video.isLive = source.isLive;
         s.playerView.isLive = source.isLive;
         s.playerView.minimizeButtonHidden = source.isLive;
+        [s updateSpeedTitle];
         [[TBLibrary shared] updateDetailsOf:s.video];
         [s.tableView reloadData];
         [s updateChapters];
@@ -618,6 +626,12 @@ typedef NS_ENUM(NSInteger, TBWatchSection) {
 {
     [self detachItem];
     AVPlayerItem *item = [AVPlayerItem playerItemWithURL:url];
+    // iOS 7 and newer: the best time stretching for a faster or slower video (the default snaps 0.75x to 0.8x and
+    // sounds rough); iOS 6 has no choice here and keeps the voice's pitch by itself
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wunguarded-availability"
+    if ([item respondsToSelector:@selector(setAudioTimePitchAlgorithm:)]) item.audioTimePitchAlgorithm = @"Spectral";   // (AVAudioTimePitchAlgorithmSpectral)
+#pragma clang diagnostic pop
     self.item = item;
     [self observeItem:item];
     if (!self.player) {
@@ -632,9 +646,72 @@ typedef NS_ENUM(NSInteger, TBWatchSection) {
     self.lastPosition = -1;
     [self.playerView setBuffering:YES];
     if (self.wantsToPlay) {
-        [self.player play];
+        [self resumePlayback];
         self.playerView.playing = YES;
     }
+}
+
+#pragma mark - Speed
+
+// The speed the player should run at now: 2x while a finger is held on the picture, else the chosen one; live
+// streams always 1x
+- (float)effectiveRate
+{
+    if (self.source.isLive || self.video.isLive) return 1.0f;
+    if (self.holdingFast) return 2.0f;
+    return self.playbackRate > 0.01f ? self.playbackRate : 1.0f;
+}
+
+// Starts (or keeps) the player going at the effective speed. Every "play" goes through here: [AVPlayer play] sets the
+// rate back to 1x, which made a chosen speed silently fall back to normal after a pause, a stall or the background.
+- (void)resumePlayback
+{
+    float rate = [self effectiveRate];
+    if (fabsf(rate - 1.0f) > 0.01f) self.player.rate = rate;
+    else [self.player play];
+}
+
+// A new speed (chosen, or a hold starting / ending) for a video that is playing: applied at once
+- (void)applyRate
+{
+    [self updateSpeedTitle];
+    if (self.wantsToPlay && self.itemReady && !self.ended) [self resumePlayback];
+}
+
+- (void)updateSpeedTitle
+{
+    BOOL live = self.source ? self.source.isLive : self.video.isLive;
+    self.playerView.speedTitle = live ? @"" : [NSString stringWithFormat:@"%g×", self.playbackRate];
+}
+
+- (void)choosePlaybackRate:(float)rate
+{
+    if (rate < 0.5f || rate > 2.0f) return;
+    self.playbackRate = rate;
+    [TBSettings setPlaybackRate:rate];
+    [TBSettings save];
+    [self applyRate];
+    [self.tableView reloadData];
+    TBLog(@"Speed %g×", rate);
+}
+
+- (void)showSpeedSheetFrom:(UIView *)anchor
+{
+    if (self.source.isLive) return;
+    UIActionSheet *sheet = [[UIActionSheet alloc] initWithTitle:L(@"Speed") delegate:self cancelButtonTitle:nil destructiveButtonTitle:nil otherButtonTitles:nil];
+    for (NSUInteger i = 0; i < TBSpeedCount; i++) {
+        [sheet addButtonWithTitle:[NSString stringWithFormat:@"%g×%@", TBSpeeds[i], fabsf(TBSpeeds[i] - self.playbackRate) < 0.01f ? @" ✓" : @""]];
+    }
+    sheet.cancelButtonIndex = [sheet addButtonWithTitle:L(@"Cancel")];
+    self.pendingSheet = 3;
+    if (TBIsPad() && anchor.window) [sheet showFromRect:anchor.bounds inView:anchor animated:YES];
+    else [sheet showInView:self.view];
+}
+
+- (void)debugHoldFastForward:(BOOL)holding
+{
+    BOOL taken = [self playerView:self.playerView holdsFastForward:holding];
+    TBLog(@"Hold %@: %@, rate now %.2f", holding ? @"on" : @"off", taken ? @"taken" : @"ignored", self.player.rate);
 }
 
 - (void)detachItem
@@ -696,8 +773,8 @@ typedef NS_ENUM(NSInteger, TBWatchSection) {
                 self.pendingSeek = -1;
                 [self.player seekToTime:CMTimeMakeWithSeconds(seek, 600)];
             }
-            if (self.wantsToPlay) [self.player play];
-            if (self.playbackRate != 1 && !self.source.isLive) self.player.rate = self.playbackRate;
+            // (at the chosen speed; a paused video stays paused)
+            if (self.wantsToPlay) [self resumePlayback];
             [self updateNowPlaying];
         }
     } else if (context == TBBufferEmptyContext) {
@@ -705,7 +782,7 @@ typedef NS_ENUM(NSInteger, TBWatchSection) {
     } else if (context == TBKeepUpContext) {
         if (self.item.playbackLikelyToKeepUp) {
             [self.playerView setBuffering:NO];
-            if (self.wantsToPlay && self.player.rate == 0 && !self.ended) [self.player play];
+            if (self.wantsToPlay && self.player.rate == 0 && !self.ended) [self resumePlayback];
         }
     }
 }
@@ -843,8 +920,8 @@ typedef NS_ENUM(NSInteger, TBWatchSection) {
     }
     static NSString * const statusNames[] = { @"unknown", @"ready", @"failed" };
     NSInteger status = self.item.status;
-    return [NSString stringWithFormat:@"rate %.2f at %.1f/%.1f s, item %@%@, tracks [%@], buffered [%@], size %.0fx%.0f, empty %d keepUp %d, variant %@",
-            self.player.rate, CMTimeGetSeconds(self.player.currentTime), CMTimeGetSeconds(self.item.duration),
+    return [NSString stringWithFormat:@"rate %.2f (chosen %.2f%@) at %.1f/%.1f s, item %@%@, tracks [%@], buffered [%@], size %.0fx%.0f, empty %d keepUp %d, variant %@",
+            self.player.rate, self.playbackRate, self.holdingFast ? @", held 2x" : @"", CMTimeGetSeconds(self.player.currentTime), CMTimeGetSeconds(self.item.duration),
             status >= 0 && status <= 2 ? statusNames[status] : @"?", self.item.error ? [NSString stringWithFormat:@" (%@)", self.item.error.localizedDescription] : @"",
             [tracks componentsJoinedByString:@", "], [ranges componentsJoinedByString:@", "],
             self.item.presentationSize.width, self.item.presentationSize.height,
@@ -914,6 +991,8 @@ typedef NS_ENUM(NSInteger, TBWatchSection) {
     self.playerView.isLive = NO;
     self.playerView.minimizeButtonHidden = NO;
     self.playerView.qualityTitle = self.currentVariant ? [self.currentVariant title] : L(@"Auto");
+    if (session.playbackRate > 0.01f) self.playbackRate = session.playbackRate;
+    [self updateSpeedTitle];
 
     // the media proxy restarted while the bar floated: the old URLs are dead, so start over
     if ([TBMediaProxy shared].generation != self.proxyGeneration) {
@@ -939,7 +1018,7 @@ typedef NS_ENUM(NSInteger, TBWatchSection) {
     self.lastProgressTime = [NSDate timeIntervalSinceReferenceDate];
     self.lastPosition = -1;
     self.playerView.playing = self.wantsToPlay;
-    if (self.wantsToPlay && self.player.rate < 0.01) [self.player play];
+    if (self.wantsToPlay && self.player.rate < 0.01) [self resumePlayback];
 
     [self.tableView reloadData];
     [self loadInfo];
@@ -964,6 +1043,7 @@ typedef NS_ENUM(NSInteger, TBWatchSection) {
     session.position = CMTimeGetSeconds(self.player.currentTime);
     session.wantsToPlay = self.wantsToPlay;
     session.proxyGeneration = self.proxyGeneration;
+    session.playbackRate = self.playbackRate;
     // stop observing but leave the player running; the mini bar adopts it
     [self detachItem];
     self.playerView.player = nil;
@@ -1059,7 +1139,7 @@ typedef NS_ENUM(NSInteger, TBWatchSection) {
         TBLog(@"No progress for %.0f s, reloading", now - self.lastProgressTime);
         self.lastProgressTime = now;
         if (self.source.isLive) [self playSource];
-        else { [self.player pause]; [self.player play]; }
+        else { [self.player pause]; [self resumePlayback]; }
     }
     if (self.source.isLive) self.playerView.statusText = self.info.viewsText ?: @"";
     if (!self.source.isLive && ((NSInteger)now % 15 == 0)) [self rememberPosition];
@@ -1101,7 +1181,7 @@ typedef NS_ENUM(NSInteger, TBWatchSection) {
         __weak TBWatchViewController *weakSelf = self;
         dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.4 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
             TBWatchViewController *s = weakSelf;
-            if (s && s.inBackground && s.wantsToPlay) [s.player play];
+            if (s && s.inBackground && s.wantsToPlay) [s resumePlayback];
         });
     } else if (self.wantsToPlay) {
         [self.player pause];
@@ -1123,7 +1203,7 @@ typedef NS_ENUM(NSInteger, TBWatchSection) {
     }
     if (self.wantsToPlay && !self.ended) {
         if (self.source.isLive && ![TBSettings backgroundAudio] && [NSDate timeIntervalSinceReferenceDate] - self.pausedAt > 60) [self playSource];
-        else [self.player play];
+        else [self resumePlayback];
     }
     [self updateStatusBar];
 }
@@ -1137,7 +1217,7 @@ typedef NS_ENUM(NSInteger, TBWatchSection) {
         self.wantsToPlay = YES;
         if (self.source.isLive) { [self retryTapped]; return; }
         [self.player seekToTime:kCMTimeZero];
-        [self.player play];
+        [self resumePlayback];
         self.playerView.playing = YES;
         self.playerView.controlsLocked = NO;
         [self updateIdleTimer];
@@ -1155,7 +1235,7 @@ typedef NS_ENUM(NSInteger, TBWatchSection) {
         self.playerView.playing = YES;
         self.playerView.controlsLocked = NO;
         if (self.source.isLive && [NSDate timeIntervalSinceReferenceDate] - self.pausedAt > 60) [self playSource];
-        else [self.player play];
+        else [self resumePlayback];
     }
     [self updateIdleTimer];
 }
@@ -1192,6 +1272,26 @@ typedef NS_ENUM(NSInteger, TBWatchSection) {
 
 - (void)playerViewDidTapChat:(TBPlayerView *)view
 {
+}
+
+- (void)playerViewDidTapSpeed:(TBPlayerView *)view fromView:(UIView *)anchor
+{
+    [self showSpeedSheetFrom:anchor];
+}
+
+- (BOOL)playerView:(TBPlayerView *)view holdsFastForward:(BOOL)holding
+{
+    if (!holding) {
+        if (!self.holdingFast) return NO;
+        self.holdingFast = NO;
+        [self applyRate];
+        return YES;
+    }
+    // only a video that is playing speeds up (a paused, loading or finished one, and live streams, ignore the hold)
+    if (self.source.isLive || !self.wantsToPlay || !self.itemReady || self.ended) return NO;
+    self.holdingFast = YES;
+    [self applyRate];
+    return YES;
 }
 
 - (void)playerViewDidTapFullscreen:(TBPlayerView *)view
@@ -1246,13 +1346,8 @@ typedef NS_ENUM(NSInteger, TBWatchSection) {
         if (!self.source.isLive && self.item) self.pendingSeek = MAX(0, CMTimeGetSeconds(self.player.currentTime));
         [self playSource];
     } else if (kind == 3) {
-        // playback rate
-        float rates[] = { 0.5f, 0.75f, 1.0f, 1.25f, 1.5f, 2.0f };
-        if (buttonIndex < 6) {
-            self.playbackRate = rates[buttonIndex];
-            if (self.wantsToPlay && self.itemReady) self.player.rate = self.playbackRate;
-            [self.tableView reloadData];
-        }
+        // playback rate (kept for the next videos too)
+        if ((NSUInteger)buttonIndex < TBSpeedCount) [self choosePlaybackRate:TBSpeeds[buttonIndex]];
     } else if (kind == 5) {
         // the account's rating
         NSString *rating = buttonIndex == 0 ? @"like" : (buttonIndex == 1 ? @"dislike" : @"none");
@@ -1330,17 +1425,9 @@ typedef NS_ENUM(NSInteger, TBWatchSection) {
             else [sheet showInView:self.view];
             break;
         }
-        case 3: {   // speed
-            if (self.source.isLive) break;
-            UIActionSheet *sheet = [[UIActionSheet alloc] initWithTitle:L(@"Speed") delegate:self cancelButtonTitle:nil destructiveButtonTitle:nil otherButtonTitles:nil];
-            float rates[] = { 0.5f, 0.75f, 1.0f, 1.25f, 1.5f, 2.0f };
-            for (int i = 0; i < 6; i++) [sheet addButtonWithTitle:[NSString stringWithFormat:@"%g×%@", rates[i], fabs(rates[i] - self.playbackRate) < 0.01 ? @" ✓" : @""]];
-            sheet.cancelButtonIndex = [sheet addButtonWithTitle:L(@"Cancel")];
-            self.pendingSheet = 3;
-            if (TBIsPad()) [sheet showFromRect:button.bounds inView:button animated:YES];
-            else [sheet showInView:self.view];
+        case 3:     // speed
+            [self showSpeedSheetFrom:button];
             break;
-        }
         default: break;
     }
 }

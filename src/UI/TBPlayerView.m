@@ -24,6 +24,7 @@ static const CGFloat TBBarHeight = 44;
 @property (nonatomic, strong) UILabel *titleLabel;
 @property (nonatomic, strong) UIButton *subtitleButton;
 @property (nonatomic, strong) UIButton *qualityButton;
+@property (nonatomic, strong) UIButton *speedButton;
 @property (nonatomic, strong) UIButton *playButton;
 @property (nonatomic, strong) UIButton *backButton;
 @property (nonatomic, strong) UIButton *forwardButton;
@@ -48,6 +49,8 @@ static const CGFloat TBBarHeight = 44;
 @property (nonatomic, strong) UITapGestureRecognizer *singleTap;
 @property (nonatomic, strong) UITapGestureRecognizer *doubleTap;
 @property (nonatomic, strong) UIPanGestureRecognizer *pan;
+@property (nonatomic, strong) UILongPressGestureRecognizer *hold;
+@property (nonatomic) BOOL holdActive;               // a finger is held on the picture and the video runs at 2x
 @property (nonatomic, strong) NSArray *chapterFractions;
 @property (nonatomic, strong) NSArray *chapterTitles;
 @property (nonatomic, strong) NSMutableArray *chapterMarkViews;
@@ -113,6 +116,14 @@ static const CGFloat TBBarHeight = 44;
         [_qualityButton setBackgroundImage:[t darkPillImage] forState:UIControlStateNormal];
         [_qualityButton addTarget:self action:@selector(qualityTapped) forControlEvents:UIControlEventTouchUpInside];
         [_controls addSubview:_qualityButton];
+        _speedButton = [UIButton buttonWithType:UIButtonTypeCustom];
+        _speedButton.accessibilityLabel = L(@"Speed");
+        _speedButton.titleLabel.font = [UIFont boldSystemFontOfSize:12];
+        [_speedButton setTitleColor:[UIColor whiteColor] forState:UIControlStateNormal];
+        [_speedButton setBackgroundImage:[t darkPillImage] forState:UIControlStateNormal];
+        [_speedButton addTarget:self action:@selector(speedTapped) forControlEvents:UIControlEventTouchUpInside];
+        _speedButton.hidden = YES;
+        [_controls addSubview:_speedButton];
 
         _playButton = [self iconButtonWithImage:[t playIcon] action:@selector(playTapped)];
         _playButton.accessibilityLabel = L(@"Play");
@@ -225,6 +236,12 @@ static const CGFloat TBBarHeight = 44;
         _pan.enabled = NO;
         _pan.maximumNumberOfTouches = 1;
         [self addGestureRecognizer:_pan];
+        // (a finger that stays put for half a second; one that moves first becomes the brightness/volume drag)
+        _hold = [[UILongPressGestureRecognizer alloc] initWithTarget:self action:@selector(held:)];
+        _hold.minimumPressDuration = 0.5;
+        _hold.delegate = self;
+        _hold.enabled = NO;
+        [self addGestureRecognizer:_hold];
 
         _controlsVisible = YES;
         _isLive = YES;
@@ -308,8 +325,18 @@ static const CGFloat TBBarHeight = 44;
     [self setNeedsLayout];
 }
 
+- (void)setSpeedTitle:(NSString *)speedTitle
+{
+    _speedTitle = [speedTitle copy];
+    [self.speedButton setTitle:speedTitle ?: @"" forState:UIControlStateNormal];
+    self.speedButton.hidden = speedTitle.length == 0 || self.isLive;
+    [self setNeedsLayout];
+}
+
 - (void)updateModeViews
 {
+    self.speedButton.hidden = self.speedTitle.length == 0 || self.isLive;
+    if (self.isLive) [self endHold];
     self.liveButton.hidden = !self.isLive;
     self.slider.hidden = self.isLive;
     self.timeLabel.hidden = self.isLive;
@@ -399,6 +426,11 @@ static const CGFloat TBBarHeight = 44;
 - (void)closeTapped { [self.delegate playerViewDidTapClose:self]; }
 - (void)playTapped { [self.delegate playerViewDidTapPlayPause:self]; [self showControls:YES animated:NO]; }
 - (void)qualityTapped { [self.delegate playerViewDidTapQuality:self fromView:self.qualityButton]; }
+- (void)speedTapped
+{
+    if ([self.delegate respondsToSelector:@selector(playerViewDidTapSpeed:fromView:)]) [self.delegate playerViewDidTapSpeed:self fromView:self.speedButton];
+    [self showControls:YES animated:NO];
+}
 - (void)chatTapped { [self.delegate playerViewDidTapChat:self]; [self showControls:YES animated:NO]; }
 - (void)fullscreenTapped { [self.delegate playerViewDidTapFullscreen:self]; [self showControls:YES animated:NO]; }
 - (void)channelTapped { [self.delegate playerViewDidTapChannel:self]; }
@@ -496,6 +528,37 @@ static const CGFloat TBBarHeight = 44;
     _advancedGesturesEnabled = advancedGesturesEnabled;
     self.doubleTap.enabled = advancedGesturesEnabled;
     self.pan.enabled = advancedGesturesEnabled;
+    self.hold.enabled = advancedGesturesEnabled;
+    if (!advancedGesturesEnabled) [self endHold];
+}
+
+// A finger held still on the picture: 2x while it stays, the chosen speed again when it lets go (as on YouTube)
+- (void)held:(UILongPressGestureRecognizer *)gesture
+{
+    switch (gesture.state) {
+        case UIGestureRecognizerStateBegan:
+            if (!self.advancedGesturesEnabled || self.isLive || self.holdActive) return;
+            if (![self.delegate respondsToSelector:@selector(playerView:holdsFastForward:)]) return;
+            if (![self.delegate playerView:self holdsFastForward:YES]) return;
+            self.holdActive = YES;
+            [self showHUD:@"2× »"];
+            break;
+        case UIGestureRecognizerStateEnded:
+        case UIGestureRecognizerStateCancelled:
+        case UIGestureRecognizerStateFailed:
+            [self endHold];
+            break;
+        default:
+            break;
+    }
+}
+
+- (void)endHold
+{
+    if (!self.holdActive) return;
+    self.holdActive = NO;
+    if ([self.delegate respondsToSelector:@selector(playerView:holdsFastForward:)]) [self.delegate playerView:self holdsFastForward:NO];
+    [self hideHUDAfterDelay];
 }
 
 - (void)doubleTapped:(UITapGestureRecognizer *)gesture
@@ -554,7 +617,7 @@ static const CGFloat TBBarHeight = 44;
 
 - (BOOL)gestureRecognizer:(UIGestureRecognizer *)gestureRecognizer shouldReceiveTouch:(UITouch *)touch
 {
-    if (gestureRecognizer == self.pan) {
+    if (gestureRecognizer == self.pan || gestureRecognizer == self.hold) {
         if (!self.advancedGesturesEnabled) return NO;
         if ([touch.view isKindOfClass:[UIControl class]]) return NO;   // the slider and the buttons keep their touches
         CGPoint p = [touch locationInView:self];
@@ -633,9 +696,16 @@ static const CGFloat TBBarHeight = 44;
         self.minimizeButton.frame = CGRectMake(left + 48, top + 2, 40, 40);
         textX = left + 92;
     }
-    CGFloat qualityW = self.qualityButton.hidden ? 0 : ceil([self.qualityButton.currentTitle sizeWithFont:self.qualityButton.titleLabel.font].width) + 16;
-    self.qualityButton.frame = CGRectMake(b.size.width - right - 8 - qualityW, top + 11, qualityW, 22);
-    CGFloat textW = CGRectGetMinX(self.qualityButton.frame) - 8 - textX;
+    // the pills at the right end of the top bar: the quality, then the speed left of it; the title stops before them
+    CGFloat pillX = b.size.width - right - 8, textEnd = pillX;
+    for (UIButton *pill in @[ self.qualityButton, self.speedButton ]) {
+        if (pill.hidden) continue;
+        CGFloat w = ceil([pill.currentTitle sizeWithFont:pill.titleLabel.font].width) + 16;
+        pill.frame = CGRectMake(pillX - w, top + 11, w, 22);
+        textEnd = pillX - w;
+        pillX = textEnd - 6;
+    }
+    CGFloat textW = MAX(0, textEnd - 8 - textX);
     self.titleLabel.frame = CGRectMake(textX, top + 4, textW, 20);
     self.subtitleButton.frame = CGRectMake(textX, top + 24, textW, 16);
 

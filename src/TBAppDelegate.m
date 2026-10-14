@@ -284,6 +284,15 @@ static BOOL TBPressView(UIView *v, NSString *text)
         TBLog(@"Seek: %@", [top isKindOfClass:[TBWatchViewController class]] ? @"done" : @"no player open");
         return YES;
     }
+    // speed?r=1.5: what picking a speed in the menu does; hold?on=1 / hold?on=0: a finger held on the picture (2x)
+    if ([target isEqualToString:@"speed"] || [target isEqualToString:@"hold"]) {
+        UIViewController *top = [TBNavigator presenterFrom:nil];
+        if (![top isKindOfClass:[TBWatchViewController class]]) { TBLog(@"%@: no player open", target); return YES; }
+        TBWatchViewController *watch = (TBWatchViewController *)top;
+        if ([target isEqualToString:@"speed"]) [watch choosePlaybackRate:[params[@"r"] floatValue]];
+        else [watch debugHoldFastForward:![params[@"on"] isEqualToString:@"0"]];
+        return YES;
+    }
     if ([target isEqualToString:@"link"]) {
         // link?url=https%3A%2F%2Fexample.com%2F: exactly the path a tapped link in a description or comment takes
         // (YouTube's addresses open inside, the rest goes to the chooser or Safari) from the screen on top

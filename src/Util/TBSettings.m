@@ -28,6 +28,7 @@ NSString * const TBQualityAuto = @"auto";
         @"keepScreenOn": @YES,
         @"autoplayNext": @NO,
         @"progressiveOnly": @NO,
+        @"playbackRate": @1.0f,
         @"sponsorBlock": @YES,
         @"sponsorBlockCategories": @[ @"sponsor", @"selfpromo", @"interaction", @"music_offtopic" ],   // (what the SponsorBlock extension skips by itself)
         @"captionsEnabled": @NO,
@@ -74,6 +75,13 @@ NSString * const TBQualityAuto = @"auto";
 
 + (BOOL)progressiveOnly { return [DEF boolForKey:@"progressiveOnly"]; }
 + (void)setProgressiveOnly:(BOOL)value { [DEF setBool:value forKey:@"progressiveOnly"]; [self notify]; }
+
++ (float)playbackRate
+{
+    float rate = [DEF floatForKey:@"playbackRate"];
+    return (rate >= 0.5f && rate <= 2.0f) ? rate : 1.0f;
+}
++ (void)setPlaybackRate:(float)value { [DEF setFloat:MAX(0.5f, MIN(2.0f, value)) forKey:@"playbackRate"]; [self notify]; }
 
 #pragma mark - SponsorBlock
 

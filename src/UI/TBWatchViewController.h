@@ -17,6 +17,10 @@
 
 - (void)loadVideo:(TBVideo *)video;
 - (void)seekToSeconds:(NSTimeInterval)seconds;
+// The speed menu's choice (0.5-2): applied now and kept for the next videos
+- (void)choosePlaybackRate:(float)rate;
+// What a finger held on the picture does (2x while held), for the debug "hold" command
+- (void)debugHoldFastForward:(BOOL)holding;
 // The player's state in one line (rate, position, tracks, buffered ranges) for the debug "stats" command
 - (NSString *)playbackDebugDescription;
 

@@ -9,7 +9,8 @@ TrollStore), with the same iOS 6 look.
 
 ## Features
 
-- Videos with quality and speed choice, resume where you left off, background sound, keep-screen-on. Where YouTube
+- Videos with quality and speed choice (0.5×–2×, remembered; hold a finger on the picture for 2×), resume where you
+  left off, background sound, keep-screen-on. Where YouTube
   still offers an HLS stream the player switches between renditions up to 1080p (the iPad 2 decodes 1080p30);
   everything else plays as the 360p MP4 - see "Quality" below
 - Shorts: a vertical player (swipe for the next one) in 720p, the shorts of the channels you follow

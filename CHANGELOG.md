@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.4.2 (2026-10-14)
+
+- Playback speed works properly now: a chosen speed used to fall back to 1× after a pause, after buffering, in the
+  mini player, in the background or from the lock screen while the button still showed the old value. Every resume
+  now keeps the speed.
+- The speed is remembered for the next videos, and the player shows it as a pill next to the quality (also in full
+  screen), so it can be changed without leaving the video. 1.75× was added to 0.5×–2×.
+- Hold a finger on the picture to play at 2× while it stays down, as on YouTube; let go and the chosen speed returns.
+- iOS 7 and newer use the best-quality time stretching for faster or slower speech.
+
 ## 0.4.1 (2026-10-14)
 
 - Links in video descriptions, comments and replies and on channel pages can be tapped (they show in blue). YouTube

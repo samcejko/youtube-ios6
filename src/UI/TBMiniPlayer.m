@@ -10,6 +10,13 @@
 #import <AVFoundation/AVFoundation.h>
 
 @implementation TBPlaybackSession
+- (void)play
+{
+    // (setting the rate starts the player at that speed; play would reset it to 1x)
+    float rate = self.playbackRate;
+    if (rate > 0.01f && fabsf(rate - 1.0f) > 0.01f) self.player.rate = rate;
+    else [self.player play];
+}
 @end
 
 #pragma mark - Views
@@ -182,7 +189,7 @@
     [self startTimer];
     [self observe];
     _active = YES;
-    if (session.wantsToPlay && session.player.rate < 0.01) [session.player play];
+    if (session.wantsToPlay && session.player.rate < 0.01) [session play];
 }
 
 - (TBPlaybackSession *)detachSession
@@ -224,7 +231,7 @@
     AVPlayer *p = self.session.player;
     if (!p) return;
     if (p.rate > 0.01) { [p pause]; self.session.wantsToPlay = NO; }
-    else { [p play]; self.session.wantsToPlay = YES; }
+    else { [self.session play]; self.session.wantsToPlay = YES; }
     [self updatePlayPauseIcon];
 }
 
@@ -317,7 +324,7 @@
         __weak TBMiniPlayer *weakSelf = self;
         dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.4 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
             TBMiniPlayer *s = weakSelf;
-            if (s.session.wantsToPlay && s.session.player.rate < 0.01) [s.session.player play];
+            if (s.session.wantsToPlay && s.session.player.rate < 0.01) [s.session play];
         });
     } else if (p.rate > 0.01) {
         [p pause];
@@ -330,7 +337,7 @@
     if (!self.session.player) return;
     [self videoLayer].player = self.session.player;
     [[TBMediaProxy shared] ensureRunning];
-    if (self.session.wantsToPlay && self.session.player.rate < 0.01) [self.session.player play];
+    if (self.session.wantsToPlay && self.session.player.rate < 0.01) [self.session play];
 }
 
 @end

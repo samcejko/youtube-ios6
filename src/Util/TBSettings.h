@@ -25,6 +25,8 @@ extern NSString * const TBQualityAuto;      // the player switches between what 
 + (void)setAutoplayNext:(BOOL)value;
 + (BOOL)progressiveOnly;            // 360p MP4 instead of HLS (a way out should HLS fail on a device)
 + (void)setProgressiveOnly:(BOOL)value;
++ (float)playbackRate;              // the speed picked in the player (0.5-2), kept for the next videos; 1 = normal
++ (void)setPlaybackRate:(float)value;
 
 // SponsorBlock
 + (BOOL)sponsorBlock;

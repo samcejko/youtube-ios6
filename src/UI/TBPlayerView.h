@@ -15,6 +15,10 @@
 - (void)playerViewDidTapGoLive:(TBPlayerView *)view;                            // live: back to the live edge
 @optional
 - (void)playerViewDidTapMinimize:(TBPlayerView *)view;                          // shrink to the floating mini player
+- (void)playerViewDidTapSpeed:(TBPlayerView *)view fromView:(UIView *)anchor;   // the speed pill in the top bar
+// A finger held on the picture plays at 2x until it lets go (YES), then the chosen speed again (NO). Returns whether
+// the hold took effect (a paused or still loading video ignores it), so the "2x" note shows only when it did.
+- (BOOL)playerView:(TBPlayerView *)view holdsFastForward:(BOOL)holding;
 @end
 
 // The video (AVPlayerLayer) with the controls drawn over it: a top bar with the title and the quality, a bottom bar
@@ -35,6 +39,7 @@
 @property (nonatomic, copy) NSString *title;
 @property (nonatomic, copy) NSString *subtitle;      // channel · game
 @property (nonatomic, copy) NSString *qualityTitle;
+@property (nonatomic, copy) NSString *speedTitle;    // "1.5×" in a pill beside the quality; nil or "" hides it
 @property (nonatomic, copy) NSString *statusText;    // viewers · uptime, or the position in a video
 @property (nonatomic) BOOL adBreak;                  // shows a small "Ad" note
 
@@ -49,8 +54,8 @@
 @property (nonatomic) CGFloat topInset;              // room for the status bar (the notch on iOS 11+)
 @property (nonatomic) UIEdgeInsets safeInsets;       // the home indicator (bottom) and the notch sides (left/right) on iOS 11+; top is unused
 
-// Double-tap to skip, a vertical drag for brightness (left) / volume (right). Off by default (shorts keep their own
-// swipe); the watch screen turns it on.
+// Double-tap to skip, a vertical drag for brightness (left) / volume (right), a finger held on the picture for 2x.
+// Off by default (shorts keep their own swipe); the watch screen turns it on.
 @property (nonatomic) BOOL advancedGesturesEnabled;
 @property (nonatomic) BOOL minimizeButtonHidden;     // the watch screen hides it for live streams
 

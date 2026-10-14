@@ -16,6 +16,9 @@
 @property (nonatomic) double position;
 @property (nonatomic) BOOL wantsToPlay;
 @property (nonatomic) NSUInteger proxyGeneration;
+@property (nonatomic) float playbackRate;   // the chosen speed (0 = normal)
+// Plays at the chosen speed ([AVPlayer play] alone would fall back to 1x)
+- (void)play;
 @end
 
 // A small floating bar (its own window above the app) that keeps a video playing after the watch screen is minimised.
