@@ -63,6 +63,7 @@
 + (void)presentPlayer:(UIViewController *)player from:(UIViewController *)controller
 {
     UIViewController *presenter = [self presenterFrom:controller];
+    player.modalPresentationStyle = UIModalPresentationFullScreen;   // (iOS 13 and newer would present a card)
     player.modalTransitionStyle = UIModalTransitionStyleCrossDissolve;
     [presenter presentViewController:player animated:YES completion:nil];
 }

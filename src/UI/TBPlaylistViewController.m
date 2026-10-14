@@ -145,6 +145,7 @@
     TBWatchViewController *watch = [[TBWatchViewController alloc] initWithVideo:video];
     watch.queue = items;
     watch.queueIndex = index == NSNotFound ? 0 : index;
+    watch.modalPresentationStyle = UIModalPresentationFullScreen;   // (iOS 13 and newer would present a card)
     watch.modalTransitionStyle = UIModalTransitionStyleCrossDissolve;
     [[TBNavigator presenterFrom:self] presentViewController:watch animated:YES completion:nil];
 }
