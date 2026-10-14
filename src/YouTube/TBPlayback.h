@@ -24,6 +24,13 @@
 // A URL for AVPlayer through the media proxy. quality: TBQualityAuto or a height ("720"); `chosen` receives the
 // rendition when one was picked (nil = the player switches by itself), `title` what the quality button shows.
 + (NSURL *)playerURLForSource:(TBPlaybackSource *)source quality:(NSString *)quality chosen:(TBVariant **)chosen title:(NSString **)title;
+// The same, with progressive YES taking the source's MP4 even when it has renditions (iOS 6 changes the speed of
+// an MP4 file only, never of an HLS stream)
++ (NSURL *)playerURLForSource:(TBPlaybackSource *)source quality:(NSString *)quality progressive:(BOOL)progressive chosen:(TBVariant **)chosen title:(NSString **)title;
+
+// The 360p MP4 with sound of a video that the Android client serves in full (the iOS client lists none), for
+// playing at another speed on iOS 6
++ (TBHTTPTask *)progressiveForVideo:(NSString *)videoId completion:(void (^)(NSString *url, NSInteger height, NSError *error))completion;
 
 // Device limits: the iPad 2 / iPhone 4S decode 1080p30 (and 720p60); the iPhone 4 and older 720p30
 + (BOOL)deviceCanPlay:(TBVariant *)variant;

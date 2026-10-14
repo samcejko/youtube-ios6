@@ -6,4 +6,4 @@ Description: YouTube client for iOS 6 (universal): videos, shorts, live streams,
 Maintainer: samcejko
 Author: samcejko
 Section: Multimedia
-Depends: firmware (>= 6.0), firmware (<< 11.0)
+Depends: firmware (>= 6.0), firmware (<< 7.0)

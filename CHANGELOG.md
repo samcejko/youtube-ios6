@@ -2,13 +2,18 @@
 
 ## 0.4.2 (2026-10-14)
 
-- Playback speed works properly now: a chosen speed used to fall back to 1× after a pause, after buffering, in the
-  mini player, in the background or from the lock screen while the button still showed the old value. Every resume
-  now keeps the speed.
+- Playback speed works now. iOS 6's player cannot change the speed of an HLS stream (it silently stayed at 1×, and
+  from a pause the video did not start again); on iOS 6 a speed other than 1× now plays the video's 360p MP4, which
+  it can speed up, and 1× returns to the full-quality stream at the same spot. iOS 7 and newer change the speed of
+  every stream directly.
+- A chosen speed no longer falls back to 1× after a pause, after buffering, in the mini player, in the background
+  or from the lock screen.
 - The speed is remembered for the next videos, and the player shows it as a pill next to the quality (also in full
   screen), so it can be changed without leaving the video. 1.75× was added to 0.5×–2×.
-- Hold a finger on the picture to play at 2× while it stays down, as on YouTube; let go and the chosen speed returns.
+- Hold a finger on the picture to play at 2× while it stays down, as on YouTube; let go and the chosen speed returns
+  (on iOS 6 while the MP4 plays, i.e. at a speed other than 1×).
 - iOS 7 and newer use the best-quality time stretching for faster or slower speech.
+- The iOS 6 package now declares iOS 6.x only; 64-bit devices with iOS 15 and newer use the arm64 package.
 
 ## 0.4.1 (2026-10-14)
 

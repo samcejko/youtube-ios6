@@ -16,7 +16,8 @@
 @property (nonatomic) double position;
 @property (nonatomic) BOOL wantsToPlay;
 @property (nonatomic) NSUInteger proxyGeneration;
-@property (nonatomic) float playbackRate;   // the chosen speed (0 = normal)
+@property (nonatomic) float playbackRate;   // the speed this item plays at (0 = normal)
+@property (nonatomic) BOOL speedMP4;        // iOS 6: the item is the MP4 played for another speed (not the HLS rendition)
 // Plays at the chosen speed ([AVPlayer play] alone would fall back to 1x)
 - (void)play;
 @end

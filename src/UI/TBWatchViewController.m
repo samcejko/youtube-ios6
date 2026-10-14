@@ -236,6 +236,8 @@ typedef NS_ENUM(NSInteger, TBWatchSection) {
 @property (nonatomic, strong) NSTimer *tickTimer;
 @property (nonatomic) float playbackRate;        // the chosen speed (TBSettings keeps it for the next videos)
 @property (nonatomic) BOOL holdingFast;          // a finger held on the picture: 2x until it lets go
+@property (nonatomic) BOOL speedMP4;             // iOS 6: the MP4 plays instead of the HLS rendition, for another speed
+@property (nonatomic, strong) TBHTTPTask *speedTask;   // fetching that MP4's address
 @property (nonatomic) NSInteger pendingSheet;    // 1 quality, 2 share, 3 rate
 @property (nonatomic, strong) NSArray *chapters;         // TBChapter, parsed from the description
 @property (nonatomic, strong) TBPlaybackSession *sessionToAdopt;   // set by initWithSession: before the view loads
@@ -264,7 +266,7 @@ typedef NS_ENUM(NSInteger, TBWatchSection) {
         _video = session.video;
         _quality = session.quality ?: [TBSettings preferredQuality];
         _pendingSeek = -1;
-        _playbackRate = session.playbackRate > 0.01f ? session.playbackRate : [TBSettings playbackRate];
+        _playbackRate = [TBSettings playbackRate];
         _wantsToPlay = session.wantsToPlay;
         self.wantsFullScreenLayout = YES;
         _sessionToAdopt = session;
@@ -556,6 +558,8 @@ typedef NS_ENUM(NSInteger, TBWatchSection) {
 - (void)startPlayback
 {
     [self.loadTask cancel];
+    [self.speedTask cancel]; self.speedTask = nil;
+    self.speedMP4 = NO;
     self.ended = NO;
     self.itemReady = NO;
     [self.playerView showMessage:nil retryTitle:nil];
@@ -587,8 +591,31 @@ typedef NS_ENUM(NSInteger, TBWatchSection) {
             if (resume <= 0 && info.resumePosition > 10) resume = info.resumePosition;
             if (resume > 10 && (info.lengthSeconds <= 0 || resume < info.lengthSeconds - 20)) s.pendingSeek = resume;
         }
-        [s playSource];
         [s loadCaptions];
+        // iOS 6 and a speed other than 1x: straight to the MP4 (fetched first when the source came without one)
+        if ([s rateNeedsMP4:s.playbackRate]) {
+            if (source.progressiveURL.length) {
+                s.speedMP4 = YES;
+            } else {
+                s.loadTask = [TBPlayback progressiveForVideo:videoId completion:^(NSString *url, NSInteger height, NSError *error2) {
+                    TBWatchViewController *s2 = weakSelf;
+                    if (!s2 || ![s2.video.videoId isEqualToString:videoId]) return;
+                    s2.loadTask = nil;
+                    if (url.length) {
+                        s2.source.progressiveURL = url;
+                        s2.source.progressiveHeight = height;
+                        s2.speedMP4 = YES;
+                    } else {
+                        TBLog(@"Speed: no MP4 for %@ (%@), playing HLS at 1×", videoId, error2.localizedDescription);
+                    }
+                    [s2 updateSpeedTitle];
+                    [s2 playSource];
+                }];
+                return;
+            }
+        }
+        [s updateSpeedTitle];
+        [s playSource];
     }];
 }
 
@@ -596,14 +623,16 @@ typedef NS_ENUM(NSInteger, TBWatchSection) {
 {
     TBVariant *chosen = nil;
     NSString *title = nil;
-    NSURL *url = [TBPlayback playerURLForSource:self.source quality:self.quality chosen:&chosen title:&title];
+    if (self.speedMP4 && !self.source.progressiveURL.length) self.speedMP4 = NO;
+    NSURL *url = [TBPlayback playerURLForSource:self.source quality:self.quality progressive:self.speedMP4 chosen:&chosen title:&title];
     if (!url) { [self failWithError:TBMakeError(TBErrorNetwork, L(@"The local video proxy could not start."))]; return; }
     self.currentVariant = chosen;
     self.proxyGeneration = [TBMediaProxy shared].generation;
     self.playerView.qualityTitle = title ?: @"";
+    [self updateSpeedTitle];
     NSMutableArray *names = [NSMutableArray array];
     for (TBVariant *v in self.source.variants) [names addObject:[v title]];
-    TBLog(@"Playing %@: %@ (%@) renditions: %@ audio: %lu", self.video.videoId, title, self.source.isRemuxed ? @"DASH remux" : (self.source.hasHLS ? @"HLS" : @"MP4"),
+    TBLog(@"Playing %@: %@ (%@) renditions: %@ audio: %lu", self.video.videoId, title, self.speedMP4 ? @"MP4 for the speed" : (self.source.isRemuxed ? @"DASH remux" : (self.source.hasHLS ? @"HLS" : @"MP4")),
           names.count ? [names componentsJoinedByString:@", "] : @"-", (unsigned long)self.source.audioRenditions.count);
     if (self.source.info) {
         [TBInnertube reportPlayback:self.source.info];
@@ -653,13 +682,37 @@ typedef NS_ENUM(NSInteger, TBWatchSection) {
 
 #pragma mark - Speed
 
-// The speed the player should run at now: 2x while a finger is held on the picture, else the chosen one; live
-// streams always 1x
+// iOS 6's player changes the speed of an MP4 file, but not of an HLS stream: there a rate other than 1x is refused
+// (it stays at 1x, and from a pause the video does not start at all). So on iOS 6 a video plays its 360p MP4 while
+// another speed is chosen, and its HLS rendition again at 1x. iOS 7 and newer play every item at 0.5x-2x.
+
+// YES when the item playing (or about to play) can run at this rate
+- (BOOL)itemTakesRate:(float)rate
+{
+    if (fabsf(rate - 1.0f) < 0.01f) return YES;
+    if (self.source.isLive || self.video.isLive) return NO;
+    if (TBModernIOS()) return YES;
+    return self.speedMP4 || !self.source.variants.count;
+}
+
+// YES when the chosen rate needs the MP4 instead of the HLS rendition (iOS 6)
+- (BOOL)rateNeedsMP4:(float)rate
+{
+    return !TBModernIOS() && fabsf(rate - 1.0f) > 0.01f && !self.source.isLive && self.source.variants.count > 0;
+}
+
+// The chosen speed if the item can play it (else 1x, e.g. while the MP4 is still being fetched)
+- (float)appliedRate
+{
+    float rate = self.playbackRate > 0.01f ? self.playbackRate : 1.0f;
+    return [self itemTakesRate:rate] ? rate : 1.0f;
+}
+
+// The speed the player should run at now: 2x while a finger is held on the picture, else the applied one
 - (float)effectiveRate
 {
-    if (self.source.isLive || self.video.isLive) return 1.0f;
-    if (self.holdingFast) return 2.0f;
-    return self.playbackRate > 0.01f ? self.playbackRate : 1.0f;
+    if (self.holdingFast && [self itemTakesRate:2.0f]) return 2.0f;
+    return [self appliedRate];
 }
 
 // Starts (or keeps) the player going at the effective speed. Every "play" goes through here: [AVPlayer play] sets the
@@ -681,7 +734,51 @@ typedef NS_ENUM(NSInteger, TBWatchSection) {
 - (void)updateSpeedTitle
 {
     BOOL live = self.source ? self.source.isLive : self.video.isLive;
-    self.playerView.speedTitle = live ? @"" : [NSString stringWithFormat:@"%g×", self.playbackRate];
+    self.playerView.speedTitle = live ? @"" : [NSString stringWithFormat:@"%g×", [self appliedRate]];
+}
+
+// iOS 6: moves between the HLS rendition and the MP4 when the chosen speed asks for the other one, at the same
+// position. YES when a switch started (the new item applies the speed once it is ready).
+- (BOOL)switchSourceForRate
+{
+    if (!self.source || !self.item || self.ended) return NO;
+    BOOL wantMP4 = [self rateNeedsMP4:self.playbackRate];
+    if (wantMP4 == self.speedMP4) return NO;
+    double position = CMTimeGetSeconds(self.player.currentTime);
+    if (isnan(position)) position = 0;
+    if (!wantMP4) {
+        self.speedMP4 = NO;
+        self.pendingSeek = position;
+        TBLog(@"Speed 1×: back to the HLS rendition at %.0f s", position);
+        [self playSource];
+        return YES;
+    }
+    if (self.source.progressiveURL.length) {
+        self.speedMP4 = YES;
+        self.pendingSeek = position;
+        TBLog(@"Speed %g×: the MP4 at %.0f s (iOS 6 cannot change the speed of HLS)", self.playbackRate, position);
+        [self playSource];
+        return YES;
+    }
+    // no MP4 yet (HLS and remuxed videos come without one): the Android client has it
+    NSString *videoId = self.video.videoId;
+    __weak TBWatchViewController *weakSelf = self;
+    [self.speedTask cancel];
+    self.speedTask = [TBPlayback progressiveForVideo:videoId completion:^(NSString *url, NSInteger height, NSError *error) {
+        TBWatchViewController *s = weakSelf;
+        if (!s || ![s.video.videoId isEqualToString:videoId]) return;
+        s.speedTask = nil;
+        if (!url.length) {
+            TBLog(@"Speed: no MP4 for %@ (%@), staying at 1×", videoId, error.localizedDescription);
+            [TBUtils alertWithTitle:L(@"Speed") message:L(@"On iOS 6 only the MP4 version of a video can play faster or slower, and YouTube offers none for this video. It plays at 1×.")];
+            [s updateSpeedTitle];
+            return;
+        }
+        s.source.progressiveURL = url;
+        s.source.progressiveHeight = height;
+        if ([s rateNeedsMP4:s.playbackRate]) [s switchSourceForRate];
+    }];
+    return YES;
 }
 
 - (void)choosePlaybackRate:(float)rate
@@ -690,9 +787,10 @@ typedef NS_ENUM(NSInteger, TBWatchSection) {
     self.playbackRate = rate;
     [TBSettings setPlaybackRate:rate];
     [TBSettings save];
-    [self applyRate];
-    [self.tableView reloadData];
     TBLog(@"Speed %g×", rate);
+    if (![self switchSourceForRate]) [self applyRate];
+    else [self updateSpeedTitle];
+    [self.tableView reloadData];
 }
 
 - (void)showSpeedSheetFrom:(UIView *)anchor
@@ -738,6 +836,7 @@ typedef NS_ENUM(NSInteger, TBWatchSection) {
     [self.captionsTask cancel]; self.captionsTask = nil;
     [self.ratingTask cancel]; self.ratingTask = nil;
     [self.accountTask cancel]; self.accountTask = nil;
+    [self.speedTask cancel]; self.speedTask = nil;
     [self.tickTimer invalidate]; self.tickTimer = nil;
     [self rememberPosition];
     [self.player pause];
@@ -920,8 +1019,9 @@ typedef NS_ENUM(NSInteger, TBWatchSection) {
     }
     static NSString * const statusNames[] = { @"unknown", @"ready", @"failed" };
     NSInteger status = self.item.status;
-    return [NSString stringWithFormat:@"rate %.2f (chosen %.2f%@) at %.1f/%.1f s, item %@%@, tracks [%@], buffered [%@], size %.0fx%.0f, empty %d keepUp %d, variant %@",
-            self.player.rate, self.playbackRate, self.holdingFast ? @", held 2x" : @"", CMTimeGetSeconds(self.player.currentTime), CMTimeGetSeconds(self.item.duration),
+    return [NSString stringWithFormat:@"rate %.2f (chosen %.2f%@%@, ff %d sf %d) at %.1f/%.1f s, item %@%@, tracks [%@], buffered [%@], size %.0fx%.0f, empty %d keepUp %d, variant %@",
+            self.player.rate, self.playbackRate, self.holdingFast ? @", held 2x" : @"", self.speedMP4 ? @", MP4 for the speed" : @"",
+            self.item.canPlayFastForward, self.item.canPlaySlowForward, CMTimeGetSeconds(self.player.currentTime), CMTimeGetSeconds(self.item.duration),
             status >= 0 && status <= 2 ? statusNames[status] : @"?", self.item.error ? [NSString stringWithFormat:@" (%@)", self.item.error.localizedDescription] : @"",
             [tracks componentsJoinedByString:@", "], [ranges componentsJoinedByString:@", "],
             self.item.presentationSize.width, self.item.presentationSize.height,
@@ -991,7 +1091,7 @@ typedef NS_ENUM(NSInteger, TBWatchSection) {
     self.playerView.isLive = NO;
     self.playerView.minimizeButtonHidden = NO;
     self.playerView.qualityTitle = self.currentVariant ? [self.currentVariant title] : L(@"Auto");
-    if (session.playbackRate > 0.01f) self.playbackRate = session.playbackRate;
+    self.speedMP4 = session.speedMP4;
     [self updateSpeedTitle];
 
     // the media proxy restarted while the bar floated: the old URLs are dead, so start over
@@ -1043,7 +1143,8 @@ typedef NS_ENUM(NSInteger, TBWatchSection) {
     session.position = CMTimeGetSeconds(self.player.currentTime);
     session.wantsToPlay = self.wantsToPlay;
     session.proxyGeneration = self.proxyGeneration;
-    session.playbackRate = self.playbackRate;
+    session.playbackRate = [self appliedRate];   // (what this item can play: on iOS 6 an HLS rendition stays at 1x)
+    session.speedMP4 = self.speedMP4;
     // stop observing but leave the player running; the mini bar adopts it
     [self detachItem];
     self.playerView.player = nil;
@@ -1255,9 +1356,11 @@ typedef NS_ENUM(NSInteger, TBWatchSection) {
 
 - (void)playerViewDidTapQuality:(TBPlayerView *)view fromView:(UIView *)anchor
 {
-    UIActionSheet *sheet = [[UIActionSheet alloc] initWithTitle:L(@"Quality") delegate:self cancelButtonTitle:nil destructiveButtonTitle:nil otherButtonTitles:nil];
+    // (iOS 6 at another speed plays the MP4: a quality picked here means the HLS rendition again, at 1x)
+    NSString *heading = self.speedMP4 ? L(@"At speeds other than 1× iOS 6 plays the 360p MP4. Picking a quality returns to 1×.") : L(@"Quality");
+    UIActionSheet *sheet = [[UIActionSheet alloc] initWithTitle:heading delegate:self cancelButtonTitle:nil destructiveButtonTitle:nil otherButtonTitles:nil];
     if (self.source.hasHLS) {
-        [sheet addButtonWithTitle:[NSString stringWithFormat:@"%@%@", L(@"Auto"), self.currentVariant ? @"" : @" ✓"]];
+        [sheet addButtonWithTitle:[NSString stringWithFormat:@"%@%@", L(@"Auto"), (self.currentVariant || self.speedMP4) ? @"" : @" ✓"]];
         for (TBVariant *v in self.source.variants) {
             [sheet addButtonWithTitle:[NSString stringWithFormat:@"%@%@", [v title], v == self.currentVariant ? @" ✓" : @""]];
         }
@@ -1287,8 +1390,11 @@ typedef NS_ENUM(NSInteger, TBWatchSection) {
         [self applyRate];
         return YES;
     }
-    // only a video that is playing speeds up (a paused, loading or finished one, and live streams, ignore the hold)
+    // only a video that is playing speeds up (a paused, loading or finished one, and live streams, ignore the hold;
+    // so does an HLS rendition on iOS 6, which cannot change its speed - switching to the MP4 for a hold would take
+    // longer than most holds last)
     if (self.source.isLive || !self.wantsToPlay || !self.itemReady || self.ended) return NO;
+    if (![self itemTakesRate:2.0f]) return NO;
     self.holdingFast = YES;
     [self applyRate];
     return YES;
@@ -1339,9 +1445,16 @@ typedef NS_ENUM(NSInteger, TBWatchSection) {
     if (kind == 1) {
         if (!self.source.hasHLS) return;
         NSString *quality = buttonIndex == 0 ? TBQualityAuto : [self.source.variants[(NSUInteger)(buttonIndex - 1)] qualityKey];
-        if ([quality isEqualToString:self.quality]) return;
+        if ([quality isEqualToString:self.quality] && !self.speedMP4) return;
         self.quality = quality;
         [TBSettings setPreferredQuality:quality];
+        if (self.speedMP4) {
+            // the MP4 played for the speed: a quality means the HLS rendition again, which iOS 6 plays at 1x only
+            self.speedMP4 = NO;
+            self.playbackRate = 1.0f;
+            [TBSettings setPlaybackRate:1.0f];
+            TBLog(@"Quality %@ picked while at another speed: back to HLS at 1×", quality);
+        }
         [TBSettings save];
         if (!self.source.isLive && self.item) self.pendingSeek = MAX(0, CMTimeGetSeconds(self.player.currentTime));
         [self playSource];

@@ -343,13 +343,26 @@ static NSDictionary *TBParseAttributes(NSString *list)
     return text;
 }
 
++ (TBHTTPTask *)progressiveForVideo:(NSString *)videoId completion:(void (^)(NSString *, NSInteger, NSError *))completion
+{
+    return [TBInnertube player:videoId client:TBClientAndroid completion:^(TBPlayerInfo *info, NSError *error) {
+        if (info.progressiveURL.length) completion(info.progressiveURL, info.progressiveHeight, nil);
+        else completion(nil, 0, error ?: TBMakeError(TBErrorAPI, L(@"YouTube offers no MP4 version of this video.")));
+    }];
+}
+
 + (NSURL *)playerURLForSource:(TBPlaybackSource *)source quality:(NSString *)quality chosen:(TBVariant **)chosen title:(NSString **)title
+{
+    return [self playerURLForSource:source quality:quality progressive:NO chosen:chosen title:title];
+}
+
++ (NSURL *)playerURLForSource:(TBPlaybackSource *)source quality:(NSString *)quality progressive:(BOOL)progressive chosen:(TBVariant **)chosen title:(NSString **)title
 {
     TBMediaProxy *proxy = [TBMediaProxy shared];
     [proxy ensureRunning];
     [proxy resetPlaybackState];
     if (chosen) *chosen = nil;
-    if (source.variants.count) {
+    if (source.variants.count && !(progressive && source.progressiveURL.length)) {
         // One rendition per master, chosen here - a multi-rendition ladder does not work: iOS 6's player picks the
         // initial variant by a low bandwidth guess and never climbs, so every video sat at 480p. "Auto" means the
         // highest the device plays comfortably (720p; 1080p30 is heavy on the iPad 2 but stays in the quality menu).

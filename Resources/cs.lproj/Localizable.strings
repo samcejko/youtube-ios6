@@ -64,6 +64,9 @@
 /* Player */
 "Quality" = "Kvalita";
 "Speed" = "Rychlost";
+"At speeds other than 1× iOS 6 plays the 360p MP4. Picking a quality returns to 1×." = "Při jiné rychlosti než 1× hraje iOS 6 verzi MP4 v 360p. Volba kvality vrátí rychlost na 1×.";
+"On iOS 6 only the MP4 version of a video can play faster or slower, and YouTube offers none for this video. It plays at 1×." = "Na iOS 6 umí zrychlit nebo zpomalit jen verze videa v MP4 a tu YouTube u tohoto videa nenabízí. Hraje rychlostí 1×.";
+"YouTube offers no MP4 version of this video." = "YouTube u tohoto videa nenabízí verzi MP4.";
 "Chapters" = "Kapitoly";
 "Minimize" = "Minimalizovat";
 "Captions" = "Titulky";
