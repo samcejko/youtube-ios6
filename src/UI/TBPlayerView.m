@@ -296,6 +296,9 @@ static const CGFloat TBBarHeight = 44;
 - (void)setStatusText:(NSString *)statusText { _statusText = [statusText copy]; self.statusLabel.text = statusText; }
 - (void)setAdBreak:(BOOL)adBreak { _adBreak = adBreak; self.adLabel.hidden = !adBreak; }
 - (void)setTopInset:(CGFloat)topInset { _topInset = topInset; [self setNeedsLayout]; }
+- (void)setSafeInsets:(UIEdgeInsets)safeInsets { _safeInsets = safeInsets; [self setNeedsLayout]; }
+// where the bottom bar's row starts (above the home indicator on iOS 11+)
+- (CGFloat)bottomBarTop { return self.bounds.size.height - self.safeInsets.bottom - TBBarHeight; }
 
 - (void)setQualityTitle:(NSString *)qualityTitle
 {
@@ -384,7 +387,7 @@ static const CGFloat TBBarHeight = 44;
     CGPoint p = [gesture locationInView:self];
     if (self.controlsVisible && !self.controlsLocked) {
         // a tap on the bars is for the buttons (they handle it themselves); one on the picture hides the controls
-        if (p.y > self.topInset + TBBarHeight && p.y < self.bounds.size.height - TBBarHeight) [self showControls:NO animated:YES];
+        if (p.y > self.topInset + TBBarHeight && p.y < [self bottomBarTop]) [self showControls:NO animated:YES];
         else [self showControls:YES animated:NO];
     } else {
         [self showControls:YES animated:YES];
@@ -499,7 +502,7 @@ static const CGFloat TBBarHeight = 44;
 {
     if (!self.advancedGesturesEnabled || self.isLive) return;
     CGPoint p = [gesture locationInView:self];
-    if (p.y < self.topInset + TBBarHeight || p.y > self.bounds.size.height - TBBarHeight) return;  // the bars own their taps
+    if (p.y < self.topInset + TBBarHeight || p.y > [self bottomBarTop]) return;  // the bars own their taps
     BOOL forward = p.x > self.bounds.size.width / 2;
     [self.delegate playerView:self didSkipSeconds:forward ? 10 : -10];
     [self showHUD:forward ? @"+10 s" : @"-10 s"];
@@ -555,7 +558,7 @@ static const CGFloat TBBarHeight = 44;
         if (!self.advancedGesturesEnabled) return NO;
         if ([touch.view isKindOfClass:[UIControl class]]) return NO;   // the slider and the buttons keep their touches
         CGPoint p = [touch locationInView:self];
-        if (p.y > self.bounds.size.height - TBBarHeight) return NO;    // the scrubber row
+        if (p.y > [self bottomBarTop]) return NO;                      // the scrubber row
         if (p.y < self.topInset + TBBarHeight) return NO;              // the top bar
     }
     return YES;
@@ -617,26 +620,28 @@ static const CGFloat TBBarHeight = 44;
     self.videoView.frame = b;
     self.controls.frame = b;
     CGFloat top = self.topInset;
+    // (the controls keep clear of the notch's sides and the home indicator; the gradients run to the edges)
+    CGFloat left = self.safeInsets.left, right = self.safeInsets.right, bottom = self.safeInsets.bottom;
     BOOL narrow = b.size.width < 400;
     self.topGradient.frame = CGRectMake(0, 0, b.size.width, top + TBBarHeight + 20);
-    self.bottomGradient.frame = CGRectMake(0, b.size.height - TBBarHeight - 20, b.size.width, TBBarHeight + 20);
+    self.bottomGradient.frame = CGRectMake(0, b.size.height - bottom - TBBarHeight - 20, b.size.width, bottom + TBBarHeight + 20);
 
     // top bar
-    self.closeButton.frame = CGRectMake(4, top + 2, 40, 40);
-    CGFloat textX = 48;
+    self.closeButton.frame = CGRectMake(left + 4, top + 2, 40, 40);
+    CGFloat textX = left + 48;
     if (!self.minimizeButton.hidden) {
-        self.minimizeButton.frame = CGRectMake(48, top + 2, 40, 40);
-        textX = 92;
+        self.minimizeButton.frame = CGRectMake(left + 48, top + 2, 40, 40);
+        textX = left + 92;
     }
     CGFloat qualityW = self.qualityButton.hidden ? 0 : ceil([self.qualityButton.currentTitle sizeWithFont:self.qualityButton.titleLabel.font].width) + 16;
-    self.qualityButton.frame = CGRectMake(b.size.width - 8 - qualityW, top + 11, qualityW, 22);
+    self.qualityButton.frame = CGRectMake(b.size.width - right - 8 - qualityW, top + 11, qualityW, 22);
     CGFloat textW = CGRectGetMinX(self.qualityButton.frame) - 8 - textX;
     self.titleLabel.frame = CGRectMake(textX, top + 4, textW, 20);
     self.subtitleButton.frame = CGRectMake(textX, top + 24, textW, 16);
 
     // bottom bar
-    CGFloat y = b.size.height - TBBarHeight;
-    CGFloat x = 4;
+    CGFloat y = [self bottomBarTop];
+    CGFloat x = left + 4;
     self.playButton.frame = CGRectMake(x, y + 2, 40, 40);
     x += 44;
     if (!self.isLive) {
@@ -645,7 +650,7 @@ static const CGFloat TBBarHeight = 44;
         self.forwardButton.frame = CGRectMake(x, y + 2, 40, 40);
         x += 44;
     }
-    CGFloat rightX = b.size.width - 4;
+    CGFloat rightX = b.size.width - right - 4;
     self.fullscreenButton.frame = CGRectMake(rightX - 40, y + 2, 40, 40);
     rightX -= 44;
     if (!self.chatButton.hidden) {
@@ -677,7 +682,7 @@ static const CGFloat TBBarHeight = 44;
     } else {
         for (UIView *tick in self.chapterMarkViews) tick.hidden = YES;
     }
-    self.adLabel.frame = CGRectMake(b.size.width - 50, top + TBBarHeight + 8, 40, 18);
+    self.adLabel.frame = CGRectMake(b.size.width - right - 50, top + TBBarHeight + 8, 40, 18);
     self.spinner.center = CGPointMake(b.size.width / 2, b.size.height / 2);
     CGFloat messageW = MIN(b.size.width - 40, 420);
     self.messageLabel.frame = CGRectMake(floor((b.size.width - messageW) / 2), b.size.height / 2 - 50, messageW, 70);

@@ -1,7 +1,9 @@
 # Tubie
 
 **A YouTube client for jailbroken iOS 6.** The YouTube that shipped with iOS 6 stopped working years ago and the
-website no longer loads in its Safari; Tubie brings the content back in the look of the system itself.
+website no longer loads in its Safari; Tubie brings the content back in the look of the system itself. A second
+build of the same sources runs on **64-bit devices with iOS 14–17** (iPhone X and newer: rootless jailbreaks and
+TrollStore), with the same iOS 6 look.
 
 ![Tubie](https://github.com/samcejko/youtube-ios6/releases) <!-- screenshots live on the Releases page -->
 
@@ -90,14 +92,26 @@ at [ko-fi.com/samcejko](https://ko-fi.com/samcejko). By hand:
    The `.deb` works too (`dpkg -i`, then `su mobile -c uicache`) and installs into `/Applications`; do not keep
    both installed at once.
 
+On iOS 14–17 (64-bit): with a rootless jailbreak add the same repository in Sileo or Zebra, or install the
+`iphoneos-arm64` `.deb` with `dpkg -i` (it goes into `/var/jb/Applications`); without a jailbreak open
+`Tubie-<version>-arm64.ipa` in [TrollStore](https://github.com/opa334/TrollStore). The same app, the same iOS 6 look.
+
 ## Building (GitHub Actions)
 
-No Mac needed. Every push runs `.github/workflows/build.yml` on Ubuntu with Theos, the iOS 9.3 SDK
-(deployment target 6.0) and Mbed TLS. Artifacts: `Tubie-<version>.ipa` and a `.deb`.
+No Mac needed. Every push runs `.github/workflows/build.yml` on Ubuntu with Theos and Mbed TLS, twice from the
+same sources:
+
+- `ios6-armv7`: the iOS 9.3 SDK, deployment target 6.0 → `Tubie-<version>.ipa` and the `iphoneos-arm` `.deb`;
+- `ios14-arm64`: `make package THEOS_PACKAGE_SCHEME=rootless`, the iOS 16.5 SDK, deployment target 14.0 →
+  `Tubie-<version>-arm64.ipa` (TrollStore) and the `iphoneos-arm64` `.deb` (rootless, `/var/jb`).
+
+The differences live in `src/Util/TBModern.m` (safe areas, the iOS 6 look of the bars on iOS 7 and newer,
+full-screen modals) and in `tools/modern_bundle.py` (the arm64 bundle's Info.plist and launch screen).
 
 Helper scripts (Windows PowerShell, see `tools/`): `gh-push.ps1` pushes the working tree through the GitHub API,
-`gh-build.ps1` waits for the build and installs it on the device over SSH, `gh-release.ps1` publishes a release,
-`ipad.ps1` holds the SSH helpers, `check-strings.ps1` lists untranslated texts.
+`gh-build.ps1` waits for the build, fetches both packages and installs them on the iPad (`-Install`) or the arm64 `.deb`
+on the iPhone (`-InstallIPhone`), `gh-release.ps1` publishes a release, `ipad.ps1` and `iphone.ps1` hold the SSH
+helpers, `check-strings.ps1` lists untranslated texts.
 
 URL scheme (other apps, or `uiopen` over SSH): `tubie:watch/<id>`, `tubie:short/<id>`, `tubie:channel/<id or @handle>`,
 `tubie:playlist/<id>`, `tubie:search?q=<text>`, `tubie:open?url=<youtube link>`.

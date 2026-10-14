@@ -3,6 +3,7 @@
 #import "TBNavigator.h"
 #import "TBTheme.h"
 #import "TBUtils.h"
+#import "TBModern.h"
 #import "TBCommon.h"
 
 static NSString * const kFooterId = @"footer";
@@ -387,10 +388,17 @@ static NSString * const kFooterId = @"footer";
     return MAX(2, MIN(4, (NSInteger)floor(width / 300)));
 }
 
+// The width the items share: the view's, minus the notch's sides in landscape (iOS 11+)
+- (CGFloat)usableWidth
+{
+    UIEdgeInsets safe = TBSafeAreaInsets(self.view);
+    return self.view.bounds.size.width - safe.left - safe.right;
+}
+
 - (CGFloat)itemWidthInSection:(NSInteger)section
 {
     NSInteger columns = [self columnsInSection:section];
-    CGFloat width = self.view.bounds.size.width;
+    CGFloat width = [self usableWidth];
     BOOL shorts = [self shortsSection:section];
     CGFloat inset = shorts ? 8 : ([self usesCards] ? 8 : 0);
     CGFloat spacing = shorts ? 6 : ([self usesCards] ? 8 : 0);
@@ -402,15 +410,16 @@ static NSString * const kFooterId = @"footer";
     CGFloat w = [self itemWidthInSection:indexPath.section];
     id item = [self itemAt:indexPath];
     if ([self shortsSection:indexPath.section]) return CGSizeMake(w, [TBShortCell heightForWidth:w]);
-    if ([item isKindOfClass:[TBChannel class]]) return CGSizeMake([self usesCards] ? self.view.bounds.size.width - 16 : self.view.bounds.size.width, [TBChannelCell height]);
+    if ([item isKindOfClass:[TBChannel class]]) return CGSizeMake([self usesCards] ? [self usableWidth] - 16 : [self usableWidth], [TBChannelCell height]);
     if ([self usesCards]) return CGSizeMake(w, [TBVideoCell cardHeightForWidth:w]);
     return CGSizeMake(w, [TBVideoCell rowHeight]);
 }
 
 - (UIEdgeInsets)collectionView:(UICollectionView *)collectionView layout:(UICollectionViewLayout *)layout insetForSectionAtIndex:(NSInteger)section
 {
-    if ([self shortsSection:section]) return UIEdgeInsetsMake(6, 8, 10, 8);
-    return [self usesCards] ? UIEdgeInsetsMake(8, 8, 8, 8) : UIEdgeInsetsMake(0, 0, 0, 0);
+    UIEdgeInsets safe = TBSafeAreaInsets(self.view);
+    if ([self shortsSection:section]) return UIEdgeInsetsMake(6, 8 + safe.left, 10, 8 + safe.right);
+    return [self usesCards] ? UIEdgeInsetsMake(8, 8 + safe.left, 8, 8 + safe.right) : UIEdgeInsetsMake(0, safe.left, 0, safe.right);
 }
 
 - (CGFloat)collectionView:(UICollectionView *)collectionView layout:(UICollectionViewLayout *)layout minimumInteritemSpacingForSectionAtIndex:(NSInteger)section

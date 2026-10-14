@@ -7,6 +7,7 @@
 #import "TBSettings.h"
 #import "TBTheme.h"
 #import "TBUtils.h"
+#import "TBModern.h"
 #import "TBCommon.h"
 #import <AVFoundation/AVFoundation.h>
 #import <QuartzCore/QuartzCore.h>
@@ -187,21 +188,30 @@ static void *TBShortStatusContext = &TBShortStatusContext;
 - (BOOL)shouldAutorotate { return YES; }
 - (UIInterfaceOrientationMask)supportedInterfaceOrientations { return TBIsPad() ? UIInterfaceOrientationMaskAll : UIInterfaceOrientationMaskAllButUpsideDown; }
 
+// iOS 7 and newer (never called on iOS 6): no status bar over the video; the swipe up for the next short must not
+// be taken for the home gesture of iOS 11+ (it needs a second swipe then), and the home indicator fades away
+- (BOOL)prefersStatusBarHidden { return YES; }
+- (UIRectEdge)preferredScreenEdgesDeferringSystemGestures { return UIRectEdgeBottom; }
+- (BOOL)prefersHomeIndicatorAutoHidden { return YES; }
+
 - (void)viewWillLayoutSubviews
 {
     [super viewWillLayoutSubviews];
     CGRect b = self.view.bounds;
+    // the notch and the home indicator (iOS 11+), else zero: the text and the buttons keep clear of them
+    UIEdgeInsets safe = TBSafeAreaInsets(self.view);
+    CGFloat bottom = b.size.height - safe.bottom;
     // on the wide iPad screen the picture stays a phone-shaped column in the middle
     CGFloat w = MIN(b.size.width, floor(b.size.height * 9.0 / 16.0) + 40);
     CGFloat x = floor((b.size.width - w) / 2);
-    self.shade.frame = CGRectMake(x, b.size.height - 180, w, 180);
-    self.closeButton.frame = CGRectMake(x + 6, 10, 44, 44);
-    self.counterLabel.frame = CGRectMake(x + w - 110, 22, 100, 20);
-    self.viewsLabel.frame = CGRectMake(x + 12, b.size.height - 28, w - 24, 16);
-    self.channelButton.frame = CGRectMake(x + 12, b.size.height - 50, w - 24, 20);
+    self.shade.frame = CGRectMake(x, b.size.height - 180 - safe.bottom, w, 180 + safe.bottom);
+    self.closeButton.frame = CGRectMake(x + 6, safe.top + 10, 44, 44);
+    self.counterLabel.frame = CGRectMake(x + w - 110, safe.top + 22, 100, 20);
+    self.viewsLabel.frame = CGRectMake(x + 12, bottom - 28, w - 24, 16);
+    self.channelButton.frame = CGRectMake(x + 12, bottom - 50, w - 24, 20);
     CGSize ts = [self.titleLabel.text sizeWithFont:self.titleLabel.font constrainedToSize:CGSizeMake(w - 24, 60) lineBreakMode:NSLineBreakByWordWrapping];
-    self.titleLabel.frame = CGRectMake(x + 12, b.size.height - 56 - ts.height, w - 24, ts.height);
-    self.progressTrack.frame = CGRectMake(x, b.size.height - 3, w, 3);
+    self.titleLabel.frame = CGRectMake(x + 12, bottom - 56 - ts.height, w - 24, ts.height);
+    self.progressTrack.frame = CGRectMake(x, bottom - 3, w, 3);
     self.spinner.center = CGPointMake(b.size.width / 2, b.size.height / 2);
     self.pausedBadge.frame = CGRectMake(floor(b.size.width / 2 - 30), floor(b.size.height / 2 - 30), 60, 60);
     self.messageLabel.frame = CGRectMake(x + 20, b.size.height / 2 - 40, w - 40, 80);

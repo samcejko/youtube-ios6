@@ -15,6 +15,7 @@
 #import "TBSettings.h"
 #import "TBTheme.h"
 #import "TBUtils.h"
+#import "TBModern.h"
 #import "TBCommon.h"
 #import <AVFoundation/AVFoundation.h>
 #import <MediaPlayer/MediaPlayer.h>
@@ -349,22 +350,31 @@ typedef NS_ENUM(NSInteger, TBWatchSection) {
 - (void)updateStatusBar
 {
     [[UIApplication sharedApplication] setStatusBarHidden:[self videoFillsScreen] withAnimation:UIStatusBarAnimationFade];
+    TBModernStatusBarChanged(self);   // iOS 7+ asks prefersStatusBarHidden instead
 }
+
+// iOS 7 and newer (never called on iOS 6)
+- (BOOL)prefersStatusBarHidden { return [self videoFillsScreen]; }
+- (UIStatusBarStyle)preferredStatusBarStyle { return TBModernStatusBarStyle(UIStatusBarStyleBlackOpaque); }
 
 - (void)viewWillLayoutSubviews
 {
     [super viewWillLayoutSubviews];
     CGRect b = self.view.bounds;
     BOOL fills = [self videoFillsScreen];
-    CGFloat statusBar = fills ? 0 : 20;
+    UIEdgeInsets safe = TBSafeAreaInsets(self.view);   // the notch and the home indicator (iOS 11+), else zero
+    // the status bar (20 on iOS 6), or the notch on iOS 11+ (also when the status bar is hidden)
+    CGFloat statusBar = TBModernTopInset(self.view, fills ? 0 : 20);
     CGRect playerFrame;
     if (fills) {
         playerFrame = b;
+        self.playerView.safeInsets = UIEdgeInsetsMake(0, safe.left, safe.bottom, safe.right);
     } else {
         CGFloat h = floor(b.size.width * 9.0 / 16.0);
         CGFloat maxH = floor(b.size.height * 0.56);
         if (h > maxH) h = maxH;
         playerFrame = CGRectMake(0, 0, b.size.width, h + statusBar);
+        self.playerView.safeInsets = UIEdgeInsetsMake(0, safe.left, 0, safe.right);
     }
     self.playerView.frame = playerFrame;
     self.playerView.topInset = statusBar;
@@ -376,11 +386,12 @@ typedef NS_ENUM(NSInteger, TBWatchSection) {
 - (void)layoutOverlays
 {
     CGRect pf = self.playerView.frame;
+    UIEdgeInsets safe = self.playerView.safeInsets;
     CGFloat w = MIN(pf.size.width - 40, 640);
     CGSize s = [self.captionLabel.text sizeWithFont:self.captionLabel.font constrainedToSize:CGSizeMake(w - 16, 120) lineBreakMode:NSLineBreakByWordWrapping];
-    CGFloat lift = self.playerView.controlsVisible ? 54 : 14;
+    CGFloat lift = (self.playerView.controlsVisible ? 54 : 14) + safe.bottom;
     self.captionLabel.frame = CGRectMake(floor((pf.size.width - s.width - 16) / 2), CGRectGetMaxY(pf) - lift - s.height - 8, ceil(s.width) + 16, ceil(s.height) + 8);
-    self.skipLabel.frame = CGRectMake(pf.size.width - 12 - 190, pf.origin.y + self.playerView.topInset + 50, 190, 24);
+    self.skipLabel.frame = CGRectMake(pf.size.width - safe.right - 12 - 190, pf.origin.y + self.playerView.topInset + 50, 190, 24);
 }
 
 - (void)applyTheme

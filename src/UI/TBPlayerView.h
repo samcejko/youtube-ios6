@@ -46,7 +46,8 @@
 - (void)showControlsBriefly;
 @property (nonatomic, readonly) BOOL controlsVisible;
 @property (nonatomic) BOOL controlsLocked;           // stay visible (while paused, while an error shows)
-@property (nonatomic) CGFloat topInset;              // room for the status bar
+@property (nonatomic) CGFloat topInset;              // room for the status bar (the notch on iOS 11+)
+@property (nonatomic) UIEdgeInsets safeInsets;       // the home indicator (bottom) and the notch sides (left/right) on iOS 11+; top is unused
 
 // Double-tap to skip, a vertical drag for brightness (left) / volume (right). Off by default (shorts keep their own
 // swipe); the watch screen turns it on.

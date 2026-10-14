@@ -4,6 +4,7 @@
 #import "TBAccount.h"
 #import "TBNavigator.h"
 #import "TBUtils.h"
+#import "TBModern.h"
 #import "TBTheme.h"
 #import "TBCommon.h"
 
@@ -151,7 +152,9 @@
 
 - (CGFloat)tableView:(UITableView *)tableView heightForRowAtIndexPath:(NSIndexPath *)indexPath
 {
-    return [TBCommentCell heightForComment:self.comments[(NSUInteger)indexPath.row] width:tableView.bounds.size.width];
+    // (on iOS 11+ the table keeps the cells' content clear of the notch, which narrows the text)
+    UIEdgeInsets safe = TBSafeAreaInsets(tableView);
+    return [TBCommentCell heightForComment:self.comments[(NSUInteger)indexPath.row] width:tableView.bounds.size.width - safe.left - safe.right];
 }
 
 - (UITableViewCell *)tableView:(UITableView *)tableView cellForRowAtIndexPath:(NSIndexPath *)indexPath

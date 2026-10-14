@@ -4,6 +4,7 @@
 #import "TBLibrary.h"
 #import "TBTheme.h"
 #import "TBUtils.h"
+#import "TBModern.h"
 #import "TBCommon.h"
 #import "TBInnertube.h"
 #import <AVFoundation/AVFoundation.h>
@@ -68,7 +69,15 @@
 
     self.container = [[UIView alloc] initWithFrame:self.window.bounds];
     self.container.backgroundColor = [UIColor clearColor];
-    [self.window addSubview:self.container];
+    if (TBModernIOS()) {
+        // iOS 7 and newer rotate a window through its root view controller (and size the screen's bounds with the
+        // orientation): the container is that controller's view, nothing is rotated by hand
+        UIViewController *root = [[UIViewController alloc] init];
+        root.view = self.container;
+        self.window.rootViewController = root;
+    } else {
+        [self.window addSubview:self.container];
+    }
 
     self.bar = [[UIView alloc] initWithFrame:CGRectZero];
     self.bar.backgroundColor = [UIColor colorWithWhite:0.07 alpha:1];
@@ -117,6 +126,10 @@
 - (void)layoutForOrientation
 {
     if (!self.container) return;
+    if (TBModernIOS()) {   // (the root view controller rotated the container already)
+        [self layoutBar];
+        return;
+    }
     UIInterfaceOrientation o = [UIApplication sharedApplication].statusBarOrientation;
     CGFloat angle = 0;
     if (o == UIInterfaceOrientationLandscapeLeft) angle = -M_PI_2;
@@ -135,7 +148,15 @@
 {
     CGFloat W = self.container.bounds.size.width, H = self.container.bounds.size.height;
     CGFloat barH = 62, tabBar = 49;
-    self.bar.frame = CGRectMake(0, H - tabBar - barH, W, barH);
+    // the bar sits on the tab bar, which is taller above the home indicator of iOS 11+ (and lower in landscape)
+    UIViewController *root = [UIApplication sharedApplication].delegate.window.rootViewController;
+    if ([root isKindOfClass:[UITabBarController class]]) {
+        CGFloat h = ((UITabBarController *)root).tabBar.frame.size.height;
+        if (h > 0) tabBar = h;
+    }
+    UIEdgeInsets safe = TBSafeAreaInsets(self.container);   // the notch's sides in landscape
+    self.bar.frame = CGRectMake(safe.left, H - tabBar - barH, W - safe.left - safe.right, barH);
+    W = self.bar.bounds.size.width;
     self.hairline.frame = CGRectMake(0, 0, W, 0.5);
     CGFloat videoW = floor(barH * 16.0 / 9.0);
     self.videoHost.frame = CGRectMake(0, 0, videoW, barH);

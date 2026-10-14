@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.4.0 (2026-10-14)
+
+- A second build for 64-bit devices with iOS 14–17 (iPhone X and newer), from the same source tree: the `.deb` with
+  `iphoneos-arm64` in its name for rootless jailbreaks (palera1n, Dopamine; it installs into `/var/jb`) and
+  `Tubie-<version>-arm64.ipa` for TrollStore. Not tried on a device yet.
+- On iOS 7 and newer the app draws the glossy iOS 6 bars, the black glass tab bar, bordered bar buttons and rounded
+  grouped tables itself, stays in light mode and opens the players full screen, so it looks the same as on the
+  iPad 2. The player's controls, the shorts, the mini player and the grids keep clear of the notch and the home
+  indicator.
+- The 32-bit build gets the same look on devices with iOS 7–10.
+
 ## 0.3.1 (2026-10-14)
 
 - Settings → About has a "Support the development" row that opens the author's Ko-fi page. The app stays free.

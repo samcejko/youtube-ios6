@@ -8,6 +8,7 @@
 #import "TBSettings.h"
 #import "TBTheme.h"
 #import "TBUtils.h"
+#import "TBModern.h"
 #import "TBCommon.h"
 #include <dlfcn.h>
 #include <signal.h>
@@ -96,6 +97,8 @@ static BOOL TBPressView(UIView *v, NSString *text)
     signal(SIGPIPE, SIG_IGN);
     [TBSettings registerDefaults];
     TBLog(@"Tubie %@ starting on %@ (iOS %@)", [TBUtils appVersion], [TBUtils deviceModel], [UIDevice currentDevice].systemVersion);
+    // iOS 7 and newer (the arm64 build): the iOS 6 look of the bars, full-screen modals; nothing on iOS 6
+    TBModernSetUp([[TBTheme shared] barStyle]);
     [TBTLSSocket warmUp];
     [[TBImageLoader shared] pruneDisk];
 
