@@ -20,6 +20,10 @@
 
 // youtube.com / youtu.be links; NO when the address means nothing to the app
 + (BOOL)openURL:(NSURL *)url from:(UIViewController *)controller;
+// A link tapped in a text (description, comment, channel page): YouTube's own addresses open inside the app, any
+// other web address goes to TBExternalOpen (a sister app, Safari / Surfari on iOS 6, Safari directly on iOS 7+).
+// The anchor (the tapped text, a row) places the sheet on the iPad; it may be nil.
++ (void)openLink:(NSURL *)url from:(UIViewController *)controller anchor:(UIView *)anchor;
 
 // The controller to present modal screens from (the top of the current stack)
 + (UIViewController *)presenterFrom:(UIViewController *)controller;

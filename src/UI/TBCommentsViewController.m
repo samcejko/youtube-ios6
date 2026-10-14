@@ -161,6 +161,8 @@
 {
     TBCommentCell *cell = [tableView dequeueReusableCellWithIdentifier:[TBCommentCell reuseIdentifier] forIndexPath:indexPath];
     [cell configureWithComment:self.comments[(NSUInteger)indexPath.row]];
+    __weak TBCommentsViewController *weakSelf = self;
+    cell.onLink = ^(NSString *url, UIView *anchor) { [TBNavigator openLink:[NSURL URLWithString:url] from:weakSelf anchor:anchor]; };
     return cell;
 }
 

@@ -1050,7 +1050,9 @@ static void TBWalk(id node, NSMutableArray *items, NSMutableArray *continuations
             c.subscribersText = TBText(owner[@"subscriberCountText"]);
             info.channel = c;
         }
-        info.descriptionText = TBText(secondary[@"attributedDescription"]) ?: TBText(secondary[@"description"]);
+        id descriptionNode = TBText(secondary[@"attributedDescription"]) ? secondary[@"attributedDescription"] : secondary[@"description"];
+        info.descriptionText = TBText(descriptionNode);
+        info.descriptionLinks = TBTextLinks(descriptionNode);
         // comments: the continuation of the comments section, and the count shown at its entry point
         for (id content in TBArr(TBDict(TBDict(results[@"results"])[@"results"])[@"contents"])) {
             NSDictionary *section = TBDict(TBDict(content)[@"itemSectionRenderer"]);
@@ -1120,6 +1122,7 @@ static void TBWalk(id node, NSMutableArray *items, NSMutableArray *continuations
             c.commentId = commentId;
             NSDictionary *props = TBDict(payload[@"properties"]);
             c.text = TBText(props[@"content"]);
+            c.textLinks = TBTextLinks(props[@"content"]);
             c.publishedText = TBStr(props[@"publishedTime"]);
             c.isReply = TBInt(props[@"replyLevel"]) > 0;
             NSDictionary *author = TBDict(payload[@"author"]);

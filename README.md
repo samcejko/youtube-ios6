@@ -17,6 +17,8 @@ TrollStore), with the same iOS 6 look.
 - Channels (videos, shorts, live, playlists), playlists with continuous play, related videos
 - Search with suggestions and filters, recent searches
 - Comments and replies
+- Links in descriptions, comments and on channel pages can be tapped: YouTube links open in Tubie, links to Twitch,
+  Kick and TikTok in the sister apps (Twitcher, Kicker, TikTak) when installed, the rest in Safari or (iOS 6) Surfari
 - Subscriptions, watch history and "watch later" - kept on the device, no Google account needed
 - Optional Google account (signed in with a code at google.com/device, as a TV does): the account's subscriptions,
   likes and playlists through the YouTube Data API - see "Account" below
@@ -121,9 +123,10 @@ Debugging over SSH: with a file named `debug` in the app's Documents folder (`En
 app's `tmp/screen.png` (`Get-IPadScreen`), `tubie:press?n=0` presses a button of the alert or sheet on screen,
 `tubie:press?title=<text>` a button, segment, switch row or list row with that text (URL-encoded), `tubie:tab?n=1`
 switches tabs, `tubie:back` pops the navigation stack, `tubie:scroll?y=600` (or `y=end`) scrolls the list on screen,
-`tubie:seek?t=120` moves the open video, `tubie:stats` logs the memory in use, what the proxy served by content type
-and the player's state (tracks, buffered ranges), and `tubie:proxylog` makes the proxy log every request of the
-player. `/var/log/syslog` carries the app's log lines (`[Tubie]`, `Get-TubieLog`).
+`tubie:seek?t=120` moves the open video, `tubie:link?url=<percent-encoded address>` does what a tap on that link in a
+description would (YouTube addresses open inside, others reach the chooser or Safari), `tubie:stats` logs the memory
+in use, what the proxy served by content type and the player's state (tracks, buffered ranges), and `tubie:proxylog`
+makes the proxy log every request of the player. `/var/log/syslog` carries the app's log lines (`[Tubie]`, `Get-TubieLog`).
 
 ## Project layout
 

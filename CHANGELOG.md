@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.4.1 (2026-10-14)
+
+- Links in video descriptions, comments and replies and on channel pages can be tapped (they show in blue). YouTube
+  links - videos, shorts, channels, `@handles`, playlists - open in Tubie itself; links to Twitch, Kick and TikTok
+  open in Twitcher, Kicker or TikTak when that sister app is installed.
+- Any other link: on iOS 6 a sheet offers Safari or Surfari (when installed); iOS 7 and newer open Safari directly
+  and share through the system's share sheet.
+- The iOS 6 package now declares iOS 6.0 up to 10.x. 64-bit devices use the arm64 package.
+
 ## 0.4.0 (2026-10-14)
 
 - A second build for 64-bit devices with iOS 14–17 (iPhone X and newer), from the same source tree: the `.deb` with

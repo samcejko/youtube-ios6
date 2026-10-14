@@ -1,4 +1,6 @@
 #import "TBChannelViewController.h"
+#import "TBLinkLabel.h"
+#import "TBNavigator.h"
 #import "TBInnertube.h"
 #import "TBLibrary.h"
 #import "TBAccount.h"
@@ -17,7 +19,7 @@
 @property (nonatomic, strong) TBImageView *avatar;
 @property (nonatomic, strong) UILabel *nameLabel;
 @property (nonatomic, strong) UILabel *detailLabel;
-@property (nonatomic, strong) UILabel *descriptionLabel;
+@property (nonatomic, strong) TBLinkLabel *descriptionLabel;    // (two lines; its links can be tapped)
 @property (nonatomic, strong) UIButton *subscribeButton;
 @property (nonatomic, strong) UISegmentedControl *segments;
 @property (nonatomic, strong) NSArray *shownTabs;        // TBChannelTab behind the segments
@@ -78,10 +80,11 @@
     self.detailLabel.font = [UIFont systemFontOfSize:13];
     self.detailLabel.lineBreakMode = NSLineBreakByTruncatingTail;
     [self.header addSubview:self.detailLabel];
-    self.descriptionLabel = [[UILabel alloc] initWithFrame:CGRectZero];
-    self.descriptionLabel.backgroundColor = [UIColor clearColor];
+    self.descriptionLabel = [[TBLinkLabel alloc] initWithFrame:CGRectZero];
     self.descriptionLabel.font = [UIFont systemFontOfSize:13];
     self.descriptionLabel.numberOfLines = 2;
+    __weak TBChannelViewController *weakSelf = self;
+    self.descriptionLabel.onLink = ^(NSString *url, TBLinkLabel *label) { [TBNavigator openLink:[NSURL URLWithString:url] from:weakSelf anchor:label]; };
     [self.header addSubview:self.descriptionLabel];
     self.subscribeButton = [UIButton buttonWithType:UIButtonTypeCustom];
     self.subscribeButton.titleLabel.font = [UIFont boldSystemFontOfSize:14];
@@ -110,6 +113,7 @@
     self.nameLabel.textColor = [t primaryTextColor];
     self.detailLabel.textColor = [t secondaryTextColor];
     self.descriptionLabel.textColor = [t secondaryTextColor];
+    self.descriptionLabel.linkColor = [t linkColor];
     self.avatar.layer.borderColor = [t cardColor].CGColor;
     [self updateSubscribeButton];
 }
@@ -123,7 +127,7 @@
     if (c.subscribersText.length) [parts addObject:c.subscribersText];
     if (c.videoCountText.length) [parts addObject:c.videoCountText];
     self.detailLabel.text = [parts componentsJoinedByString:@" · "];
-    self.descriptionLabel.text = c.descriptionText ?: @"";
+    [self.descriptionLabel setText:c.descriptionText ?: @"" knownLinks:nil];
     [self.avatar setImageURL:c.avatarURL placeholder:[[TBTheme shared] avatarPlaceholderWithSize:80]];
     [self.banner setImageURL:c.bannerURL placeholder:nil];
     self.banner.hidden = !c.bannerURL.length;
@@ -169,7 +173,7 @@
     self.detailLabel.frame = CGRectMake(textX, textY + 26, textW, 16);
     y = MAX(CGRectGetMaxY(self.avatar.frame), textY + 44) + 8;
     NSString *desc = self.descriptionLabel.text ?: @"";
-    CGFloat descH = desc.length ? MIN(34, ceil([desc sizeWithFont:self.descriptionLabel.font constrainedToSize:CGSizeMake(w - 2 * pad, 34) lineBreakMode:NSLineBreakByWordWrapping].height)) : 0;
+    CGFloat descH = desc.length ? [TBLinkLabel heightForText:desc font:self.descriptionLabel.font width:w - 2 * pad maxLines:2] : 0;
     self.descriptionLabel.frame = CGRectMake(pad, y, w - 2 * pad, descH);
     y += descH ? descH + 8 : 0;
     CGFloat segW = MIN(w - 2 * pad, 420);

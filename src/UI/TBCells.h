@@ -51,9 +51,11 @@
 - (void)configureWithPlaylist:(TBPlaylist *)playlist;
 @end
 
-// A comment: round avatar, author and age, the text, likes and the number of replies
+// A comment: round avatar, author and age, the text (with its links tappable), likes and the number of replies
 @interface TBCommentCell : UITableViewCell
 + (NSString *)reuseIdentifier;
 + (CGFloat)heightForComment:(id)comment width:(CGFloat)width;
 - (void)configureWithComment:(id)comment;
+// A link in the text was tapped; the view is the text, as the anchor for a sheet
+@property (nonatomic, copy) void (^onLink)(NSString *url, UIView *anchor);
 @end

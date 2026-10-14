@@ -1,5 +1,6 @@
 #import "TBGoogleLoginViewController.h"
 #import "TBAccount.h"
+#import "TBNavigator.h"
 #import "TBTheme.h"
 #import "TBUtils.h"
 #import "TBCommon.h"
@@ -16,6 +17,7 @@
 @property (nonatomic, strong) UIActivityIndicatorView *spinner;
 @property (nonatomic, strong) UIButton *retryButton;
 @property (nonatomic, strong) TBHTTPTask *task;
+@property (nonatomic, copy) NSString *verificationURL;      // the address shown (Google's), opened when tapped
 @end
 
 @implementation TBGoogleLoginViewController
@@ -72,6 +74,8 @@
     self.urlLabel.textColor = [t linkColor];
     self.urlLabel.textAlignment = NSTextAlignmentCenter;
     self.urlLabel.text = @"youtube.com/activate";
+    self.urlLabel.userInteractionEnabled = YES;   // (a tap opens the address: on this device too, where the browser can)
+    [self.urlLabel addGestureRecognizer:[[UITapGestureRecognizer alloc] initWithTarget:self action:@selector(urlTapped)]];
     [self.scrollView addSubview:self.urlLabel];
 
     self.codeLabel = [[UILabel alloc] initWithFrame:CGRectZero];
@@ -199,6 +203,7 @@
         TBGoogleLoginViewController *s = weakSelf;
         if (!s) return;
         s.codeLabel.text = userCode;
+        s.verificationURL = verificationURL;
         NSString *shown = [verificationURL stringByReplacingOccurrencesOfString:@"https://www." withString:@""];
         s.urlLabel.text = [shown stringByReplacingOccurrencesOfString:@"https://" withString:@""];
         if (qrImage) {
@@ -238,6 +243,13 @@
     [self.task cancel];
     self.task = nil;
     [self.navigationController popViewControllerAnimated:YES];
+}
+
+- (void)urlTapped
+{
+    if (!self.urlLabel.text.length) return;
+    NSString *address = self.verificationURL.length ? self.verificationURL : [@"https://" stringByAppendingString:self.urlLabel.text];
+    [TBNavigator openLink:[NSURL URLWithString:address] from:self anchor:self.urlLabel];
 }
 
 @end

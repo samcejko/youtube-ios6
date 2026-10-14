@@ -2,6 +2,7 @@
 #import "TBPlayerView.h"
 #import "TBMiniPlayer.h"
 #import "TBCells.h"
+#import "TBLinkLabel.h"
 #import "TBCommentsViewController.h"
 #import "TBExternalOpen.h"
 #import "TBNavigator.h"
@@ -159,6 +160,38 @@ typedef NS_ENUM(NSInteger, TBWatchSection) {
     for (NSUInteger i = 0; i < self.buttons.count; i++) {
         [self.buttons[i] setFrame:CGRectMake(12 + i * (w + gap), 7, w, 32)];
     }
+}
+@end
+
+// The description: four lines, or all of them when expanded; its links can be tapped (a tap elsewhere still
+// expands and collapses the row)
+@interface TBWatchDescriptionCell : UITableViewCell
+@property (nonatomic, strong) TBLinkLabel *linkLabel;
++ (UIFont *)font;
++ (CGFloat)heightForText:(NSString *)text width:(CGFloat)width expanded:(BOOL)expanded;
+@end
+
+@implementation TBWatchDescriptionCell
++ (UIFont *)font { return [UIFont systemFontOfSize:13]; }
++ (CGFloat)heightForText:(NSString *)text width:(CGFloat)width expanded:(BOOL)expanded
+{
+    return [TBLinkLabel heightForText:text font:[self font] width:width - 24 maxLines:expanded ? 0 : 4] + 20;
+}
+- (instancetype)initWithStyle:(UITableViewCellStyle)style reuseIdentifier:(NSString *)reuseIdentifier
+{
+    self = [super initWithStyle:UITableViewCellStyleDefault reuseIdentifier:reuseIdentifier];
+    if (self) {
+        _linkLabel = [[TBLinkLabel alloc] initWithFrame:CGRectZero];
+        _linkLabel.font = [TBWatchDescriptionCell font];
+        [self.contentView addSubview:_linkLabel];
+    }
+    return self;
+}
+- (void)layoutSubviews
+{
+    [super layoutSubviews];
+    CGRect b = self.contentView.bounds;
+    self.linkLabel.frame = CGRectMake(12, 10, b.size.width - 24, MAX(0, b.size.height - 20));
 }
 @end
 
@@ -1389,11 +1422,7 @@ typedef NS_ENUM(NSInteger, TBWatchSection) {
     switch ((TBWatchSection)indexPath.section) {
         case TBWatchSectionInfo: return indexPath.row == 0 ? [TBWatchTitleCell heightForTitle:self.video.title ?: @"" width:width] : 46;
         case TBWatchSectionChannel: return 60;
-        case TBWatchSectionDescription: {
-            NSString *text = [self descriptionText];
-            CGSize s = [text sizeWithFont:[UIFont systemFontOfSize:13] constrainedToSize:CGSizeMake(width - 24, self.descriptionExpanded ? 20000 : 72) lineBreakMode:NSLineBreakByWordWrapping];
-            return MIN(self.descriptionExpanded ? 20000 : 72, ceil(s.height)) + 20;
-        }
+        case TBWatchSectionDescription: return [TBWatchDescriptionCell heightForText:[self descriptionText] width:width expanded:self.descriptionExpanded];
         case TBWatchSectionChapters: return 44;
         case TBWatchSectionComments: return 44;
         case TBWatchSectionRelated: return [TBVideoTableCell height];
@@ -1491,13 +1520,15 @@ typedef NS_ENUM(NSInteger, TBWatchSection) {
             return cell;
         }
         case TBWatchSectionDescription: {
-            UITableViewCell *cell = [[UITableViewCell alloc] initWithStyle:UITableViewCellStyleDefault reuseIdentifier:nil];
+            TBWatchDescriptionCell *cell = [[TBWatchDescriptionCell alloc] initWithStyle:UITableViewCellStyleDefault reuseIdentifier:nil];
             [t styleCell:cell];
-            cell.textLabel.text = [self descriptionText];
-            cell.textLabel.font = [UIFont systemFontOfSize:13];
-            cell.textLabel.numberOfLines = self.descriptionExpanded ? 0 : 4;
-            cell.textLabel.lineBreakMode = self.descriptionExpanded ? NSLineBreakByWordWrapping : NSLineBreakByTruncatingTail;
-            cell.textLabel.textColor = [t secondaryTextColor];
+            cell.linkLabel.numberOfLines = self.descriptionExpanded ? 0 : 4;
+            cell.linkLabel.textColor = [t secondaryTextColor];
+            cell.linkLabel.linkColor = [t linkColor];
+            // (the links YouTube marked belong to the watch page's text; the player's short description has none)
+            [cell.linkLabel setText:[self descriptionText] knownLinks:self.info.descriptionText.length ? self.info.descriptionLinks : nil];
+            __weak TBWatchViewController *weakSelf = self;
+            cell.linkLabel.onLink = ^(NSString *url, TBLinkLabel *label) { [TBNavigator openLink:[NSURL URLWithString:url] from:weakSelf anchor:label]; };
             return cell;
         }
         case TBWatchSectionChapters: {

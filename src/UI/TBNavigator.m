@@ -5,6 +5,7 @@
 #import "TBPlaylistViewController.h"
 #import "TBGridViewController.h"
 #import "TBRootViewController.h"
+#import "TBExternalOpen.h"
 #import "TBInnertube.h"
 #import "TBTheme.h"
 #import "TBUtils.h"
@@ -225,6 +226,34 @@
         return YES;
     }
     return NO;
+}
+
+// youtube.com/redirect?…&q=<address> (how YouTube wraps every outside link) -> the address; a scheme-less
+// "example.com/x" -> http://example.com/x
++ (NSURL *)plainURL:(NSURL *)url
+{
+    if (!url) return nil;
+    NSString *s = url.absoluteString ?: @"";
+    if (!url.scheme.length && s.length) url = [NSURL URLWithString:[@"http://" stringByAppendingString:s]] ?: url;
+    NSString *host = [url.host lowercaseString] ?: @"";
+    if ([host rangeOfString:@"youtube.com"].location != NSNotFound && [url.path isEqualToString:@"/redirect"]) {
+        NSString *target = [TBUtils parseQuery:url.query ?: @""][@"q"];
+        if (target.length) {
+            if (![[target lowercaseString] hasPrefix:@"http"]) target = [@"http://" stringByAppendingString:target];
+            NSURL *unwrapped = [NSURL URLWithString:target];
+            if (unwrapped) return unwrapped;
+        }
+    }
+    return url;
+}
+
++ (void)openLink:(NSURL *)url from:(UIViewController *)controller anchor:(UIView *)anchor
+{
+    url = [self plainURL:url];
+    NSString *scheme = [url.scheme lowercaseString];
+    if (![scheme isEqualToString:@"http"] && ![scheme isEqualToString:@"https"]) return;
+    if ([self openURL:url from:controller]) return;   // a video, short, channel, playlist or search of YouTube: inside
+    [TBExternalOpen presentOpenInForURL:url from:controller anchor:anchor];
 }
 
 @end

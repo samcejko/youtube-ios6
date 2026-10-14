@@ -1,9 +1,9 @@
 Package: com.samcejko.tubie
 Name: Tubie
-Version: 0.4.0
+Version: 0.4.1
 Architecture: iphoneos-arm
 Description: YouTube client for iOS 6 (universal): videos, shorts, live streams, channels, playlists, comments
 Maintainer: samcejko
 Author: samcejko
 Section: Multimedia
-Depends: firmware (>= 6.0)
+Depends: firmware (>= 6.0), firmware (<< 11.0)

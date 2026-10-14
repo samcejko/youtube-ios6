@@ -69,6 +69,7 @@
 @property (nonatomic, copy) NSString *authorChannelId;
 @property (nonatomic, copy) NSString *authorAvatarURL;
 @property (nonatomic, copy) NSString *text;
+@property (nonatomic, strong) NSArray *textLinks;           // TBTextLink: the links YouTube marked in the text
 @property (nonatomic, copy) NSString *likesText;            // "1.2K"
 @property (nonatomic, copy) NSString *publishedText;        // "3 days ago"
 @property (nonatomic) NSInteger replyCount;
@@ -176,6 +177,7 @@
 @property (nonatomic, copy) NSString *likesText;            // "19M"
 @property (nonatomic, strong) TBChannel *channel;           // id, title, avatar, subscribers
 @property (nonatomic, copy) NSString *descriptionText;
+@property (nonatomic, strong) NSArray *descriptionLinks;    // TBTextLink: the links YouTube marked in the description
 @property (nonatomic, strong) NSArray *related;             // TBVideo / TBPlaylist
 @property (nonatomic, copy) NSString *relatedContinuation;
 @property (nonatomic, copy) NSString *commentsToken;
@@ -191,8 +193,22 @@
 + (NSArray *)chaptersFromDescription:(NSString *)description duration:(NSTimeInterval)duration;
 @end
 
+// A link inside a text: the characters it occupies (UTF-16 units of the text TBText returned) and where it leads.
+// YouTube shows long addresses shortened ("https://example.com/long-pa...") and names channels as "@handle", so the
+// target is taken from the API's endpoint, not from the visible characters.
+@interface TBTextLink : NSObject
+@property (nonatomic) NSRange range;
+@property (nonatomic, copy) NSString *url;                  // absolute http(s) address (YouTube's redirect unwrapped)
++ (instancetype)linkWithRange:(NSRange)range url:(NSString *)url;
+@end
+
 // Text helpers for InnerTube JSON (also used by the parsers of other classes)
 NSString *TBText(id node);                                  // {"simpleText"}, {"runs":[{"text"}]}, {"content"} or a string
+// The links of the same node (runs with a navigationEndpoint, commandRuns of an attributed text): TBTextLink, in the
+// coordinates of TBText(node). Timestamps and hashtags are left out; nil when there are none.
+NSArray *TBTextLinks(id node);
+// A navigation endpoint / innertube command as a web address (urlEndpoint, watch, shorts, channel, playlist), or nil
+NSString *TBEndpointURL(id endpoint);
 NSString *TBThumbnailURL(id node);                          // the largest of {"thumbnails":[{url,width}]} or {"sources":[...]}
 long long TBNumberFromText(NSString *text);                 // "67,046 views" -> 67046, "1.2M" -> 1200000
 NSString *TBAbsoluteURL(NSString *url);                     // "//yt3..." -> "https://yt3..."

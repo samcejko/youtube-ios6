@@ -115,7 +115,8 @@ static BOOL TBPressView(UIView *v, NSString *text)
 // tubie:open?url=<youtube link> open content. Over SSH (uiopen) a few commands help checking the app: snapshot and
 // screen write tmp/screen.png, press?n=1 presses a button of the alert on screen, press?title=X a button, segment,
 // switch row or list row with that text, tab?n=1 switches the tab, back pops the navigation stack, seek?t=120 moves
-// the open video and stats logs the memory in use. The commands need a file named "debug" in the app's Documents.
+// the open video, link?url=<percent-encoded address> does what a tap on that link in a description would and stats
+// logs the memory in use. The commands need a file named "debug" in the app's Documents.
 - (BOOL)application:(UIApplication *)application openURL:(NSURL *)url sourceApplication:(NSString *)sourceApplication annotation:(id)annotation
 {
     NSString *s = url.absoluteString ?: @"";
@@ -281,6 +282,15 @@ static BOOL TBPressView(UIView *v, NSString *text)
         UIViewController *top = [TBNavigator presenterFrom:nil];
         if ([top isKindOfClass:[TBWatchViewController class]]) [(TBWatchViewController *)top seekToSeconds:[params[@"t"] doubleValue]];
         TBLog(@"Seek: %@", [top isKindOfClass:[TBWatchViewController class]] ? @"done" : @"no player open");
+        return YES;
+    }
+    if ([target isEqualToString:@"link"]) {
+        // link?url=https%3A%2F%2Fexample.com%2F: exactly the path a tapped link in a description or comment takes
+        // (YouTube's addresses open inside, the rest goes to the chooser or Safari) from the screen on top
+        UIViewController *top = [TBNavigator presenterFrom:nil];
+        NSURL *link = [params[@"url"] length] ? [NSURL URLWithString:params[@"url"]] : nil;
+        if (link) [TBNavigator openLink:link from:top anchor:nil];
+        TBLog(@"Link %@: %@", params[@"url"] ?: @"(none)", link ? NSStringFromClass([top class]) : @"not a valid address");
         return YES;
     }
     return YES;

@@ -1,7 +1,9 @@
 #import "TBCells.h"
+#import "TBLinkLabel.h"
 #import "TBImageLoader.h"
 #import "TBTheme.h"
 #import "TBUtils.h"
+#import "TBModern.h"
 #import "TBCommon.h"
 #import <QuartzCore/QuartzCore.h>
 
@@ -559,7 +561,7 @@ static const CGFloat kRowThumbWidth = 136;
 @interface TBCommentCell ()
 @property (nonatomic, strong) TBImageView *avatar;
 @property (nonatomic, strong) UILabel *authorLabel;
-@property (nonatomic, strong) UILabel *textLabel2;
+@property (nonatomic, strong) TBLinkLabel *bodyLabel;
 @property (nonatomic, strong) UILabel *footerLabel;
 @end
 
@@ -569,13 +571,22 @@ static const CGFloat kRowThumbWidth = 136;
 
 + (UIFont *)textFont { return [UIFont systemFontOfSize:14]; }
 
+// The width the text gets in a cell of this width: right of the avatar (smaller and indented for a reply), clear of
+// the disclosure chevron of a comment with replies. The same sum for the height and the layout.
++ (CGFloat)textWidthForCellWidth:(CGFloat)width reply:(BOOL)reply accessory:(BOOL)accessory
+{
+    CGFloat indent = reply ? 24 : 0, size = reply ? 28 : 36;
+    return width - (12 + indent + size + 10) - 12 - (accessory ? 40 : 0);
+}
+
 + (CGFloat)heightForComment:(id)comment width:(CGFloat)width
 {
     NSString *text = [comment valueForKey:@"text"] ?: @"";
     BOOL reply = [[comment valueForKey:@"isReply"] boolValue];
-    CGFloat textWidth = width - (reply ? 86 : 62) - 12;
-    CGSize size = [text sizeWithFont:[self textFont] constrainedToSize:CGSizeMake(textWidth, 2000) lineBreakMode:NSLineBreakByWordWrapping];
-    return MAX(66, 10 + 18 + 2 + ceil(size.height) + 4 + 16 + 10);
+    BOOL accessory = !reply && [[comment valueForKey:@"replyCount"] integerValue] > 0;
+    CGFloat textWidth = [self textWidthForCellWidth:width reply:reply accessory:accessory];
+    CGFloat textHeight = [TBLinkLabel heightForText:text font:[self textFont] width:textWidth maxLines:0];
+    return MAX(66, 10 + 18 + 2 + textHeight + 4 + 16 + 10);
 }
 
 - (instancetype)initWithStyle:(UITableViewCellStyle)style reuseIdentifier:(NSString *)reuseIdentifier
@@ -593,12 +604,14 @@ static const CGFloat kRowThumbWidth = 136;
         _authorLabel.font = [UIFont boldSystemFontOfSize:12];
         _authorLabel.lineBreakMode = NSLineBreakByTruncatingTail;
         [self.contentView addSubview:_authorLabel];
-        _textLabel2 = [[UILabel alloc] initWithFrame:CGRectZero];
-        _textLabel2.backgroundColor = [UIColor clearColor];
-        _textLabel2.font = [TBCommentCell textFont];
-        _textLabel2.numberOfLines = 0;
-        _textLabel2.lineBreakMode = NSLineBreakByWordWrapping;
-        [self.contentView addSubview:_textLabel2];
+        _bodyLabel = [[TBLinkLabel alloc] initWithFrame:CGRectZero];
+        _bodyLabel.font = [TBCommentCell textFont];
+        __weak TBCommentCell *weakSelf = self;
+        _bodyLabel.onLink = ^(NSString *url, TBLinkLabel *label) {
+            TBCommentCell *s = weakSelf;
+            if (s.onLink) s.onLink(url, label);
+        };
+        [self.contentView addSubview:_bodyLabel];
         _footerLabel = [[UILabel alloc] initWithFrame:CGRectZero];
         _footerLabel.backgroundColor = [UIColor clearColor];
         _footerLabel.font = [UIFont systemFontOfSize:11];
@@ -620,8 +633,9 @@ static const CGFloat kRowThumbWidth = 136;
     if (pinned) [head appendFormat:@" · %@", L(@"Pinned")];
     self.authorLabel.text = head;
     self.authorLabel.textColor = creator ? [t accentColor] : [t secondaryTextColor];
-    self.textLabel2.text = [comment valueForKey:@"text"] ?: @"";
-    self.textLabel2.textColor = [t primaryTextColor];
+    [self.bodyLabel setText:[comment valueForKey:@"text"] ?: @"" knownLinks:[comment valueForKey:@"textLinks"]];
+    self.bodyLabel.textColor = [t primaryTextColor];
+    self.bodyLabel.linkColor = [t linkColor];
     NSMutableArray *footer = [NSMutableArray array];
     NSString *likes = [comment valueForKey:@"likesText"];
     if (likes.length) [footer addObject:[NSString stringWithFormat:@"👍 %@", likes]];
@@ -640,17 +654,19 @@ static const CGFloat kRowThumbWidth = 136;
 - (void)layoutSubviews
 {
     [super layoutSubviews];
-    CGRect b = self.contentView.bounds;
-    CGFloat indent = self.indentationLevel > 0 ? 24 : 0;
-    CGFloat size = self.indentationLevel > 0 ? 28 : 36;
+    BOOL reply = self.indentationLevel > 0;
+    CGFloat indent = reply ? 24 : 0;
+    CGFloat size = reply ? 28 : 36;
     self.avatar.frame = CGRectMake(12 + indent, 10, size, size);
     self.avatar.layer.cornerRadius = size / 2;
     CGFloat x = 12 + indent + size + 10;
-    CGFloat w = b.size.width - x - 12;
+    // (the width the height was computed for: the cell's, less the notch on iOS 11+, as the table gave it)
+    UIEdgeInsets safe = TBSafeAreaInsets(self);
+    CGFloat w = [TBCommentCell textWidthForCellWidth:self.bounds.size.width - safe.left - safe.right reply:reply accessory:self.accessoryType != UITableViewCellAccessoryNone];
     self.authorLabel.frame = CGRectMake(x, 10, w, 16);
-    CGSize textSize = [self.textLabel2.text sizeWithFont:self.textLabel2.font constrainedToSize:CGSizeMake(w, 2000) lineBreakMode:NSLineBreakByWordWrapping];
-    self.textLabel2.frame = CGRectMake(x, 28, w, ceil(textSize.height));
-    self.footerLabel.frame = CGRectMake(x, CGRectGetMaxY(self.textLabel2.frame) + 4, w, 16);
+    CGFloat textHeight = [TBLinkLabel heightForText:self.bodyLabel.text font:self.bodyLabel.font width:w maxLines:0];
+    self.bodyLabel.frame = CGRectMake(x, 28, w, textHeight);
+    self.footerLabel.frame = CGRectMake(x, CGRectGetMaxY(self.bodyLabel.frame) + 4, w, 16);
 }
 
 @end

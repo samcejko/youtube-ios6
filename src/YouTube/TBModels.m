@@ -35,6 +35,114 @@ NSString *TBAbsoluteURL(NSString *url)
     return url;
 }
 
+#pragma mark - Links in texts
+
+@implementation TBTextLink
++ (instancetype)linkWithRange:(NSRange)range url:(NSString *)url
+{
+    TBTextLink *link = [[TBTextLink alloc] init];
+    link.range = range;
+    link.url = url;
+    return link;
+}
+- (NSString *)description { return [NSString stringWithFormat:@"<TBTextLink %@ -> %@>", NSStringFromRange(self.range), self.url]; }
+@end
+
+// A YouTube address given as a path ("/watch?v=…", "/@handle") made absolute; others returned as they are
+static NSString *TBYouTubeURL(NSString *url)
+{
+    url = TBAbsoluteURL(url);
+    if ([url hasPrefix:@"/"]) return [@"https://www.youtube.com" stringByAppendingString:url];
+    return url;
+}
+
+// youtube.com/redirect?…&q=<address> (every outside link of a description or comment) -> the address itself
+static NSString *TBUnwrapRedirect(NSString *url)
+{
+    NSURL *u = [NSURL URLWithString:url];
+    NSString *host = [u.host lowercaseString] ?: @"";
+    if ([host rangeOfString:@"youtube.com"].location == NSNotFound || ![u.path isEqualToString:@"/redirect"]) return url;
+    NSString *target = [TBUtils parseQuery:u.query ?: @""][@"q"];
+    if (!target.length) return url;
+    if (![[target lowercaseString] hasPrefix:@"http"]) target = [@"http://" stringByAppendingString:target];
+    return target;
+}
+
+NSString *TBEndpointURL(id endpoint)
+{
+    NSDictionary *e = TBDict(endpoint);
+    if (!e) return nil;
+    NSString *url = TBStr(TBDict(e[@"urlEndpoint"])[@"url"]);
+    if (url.length) return TBUnwrapRedirect(TBYouTubeURL(url));
+    NSDictionary *watch = TBDict(e[@"watchEndpoint"]);
+    NSString *videoId = TBStr(watch[@"videoId"]);
+    if (videoId.length) {
+        NSString *u = [@"https://www.youtube.com/watch?v=" stringByAppendingString:videoId];
+        NSInteger start = TBInt(watch[@"startTimeSeconds"]);
+        if (start > 0) u = [u stringByAppendingFormat:@"&t=%lds", (long)start];
+        return u;
+    }
+    NSString *reelId = TBStr(TBDict(e[@"reelWatchEndpoint"])[@"videoId"]);
+    if (reelId.length) return [@"https://www.youtube.com/shorts/" stringByAppendingString:reelId];
+    NSDictionary *browse = TBDict(e[@"browseEndpoint"]);
+    NSString *browseId = TBStr(browse[@"browseId"]);
+    NSString *canonical = TBStr(browse[@"canonicalBaseUrl"]);
+    if ([browseId hasPrefix:@"UC"] && browseId.length > 10) return [@"https://www.youtube.com/channel/" stringByAppendingString:browseId];
+    if ([canonical hasPrefix:@"/@"] || [canonical hasPrefix:@"/c/"] || [canonical hasPrefix:@"/user/"]) return TBYouTubeURL(canonical);
+    if ([browseId hasPrefix:@"VL"] && browseId.length > 2) return [@"https://www.youtube.com/playlist?list=" stringByAppendingString:[browseId substringFromIndex:2]];
+    // the address the web client would open, when it is one the app knows
+    NSString *web = TBStr(TBDict(TBDict(e[@"commandMetadata"])[@"webCommandMetadata"])[@"url"]);
+    if (web.length) {
+        for (NSString *prefix in @[ @"/watch", @"/shorts/", @"/channel/", @"/@", @"/c/", @"/user/", @"/playlist", @"http" ]) {
+            if ([web hasPrefix:prefix]) return TBUnwrapRedirect(TBYouTubeURL(web));
+        }
+    }
+    return nil;
+}
+
+// Is this run's visible text an address or a channel mention (not a timestamp "1:23" or a hashtag "#tag")?
+static BOOL TBRunTextIsLink(NSString *text)
+{
+    NSString *t = [text stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceAndNewlineCharacterSet]];
+    if (t.length < 2) return NO;
+    if ([t hasPrefix:@"@"]) return YES;
+    NSString *lower = [t lowercaseString];
+    if ([lower hasPrefix:@"http://"] || [lower hasPrefix:@"https://"] || [lower hasPrefix:@"www."]) return YES;
+    if ([t rangeOfCharacterFromSet:[NSCharacterSet whitespaceAndNewlineCharacterSet]].location != NSNotFound) return NO;
+    return [t rangeOfString:@"."].location != NSNotFound || [t rangeOfString:@"/"].location != NSNotFound;
+}
+
+NSArray *TBTextLinks(id node)
+{
+    NSDictionary *d = TBDict(node);
+    if (!d) return nil;
+    NSMutableArray *links = [NSMutableArray array];
+    if (!TBStr(d[@"simpleText"]) && !TBStr(d[@"content"])) {
+        // {"runs": [{"text", "navigationEndpoint"}]}: the offsets follow TBText's concatenation
+        NSUInteger offset = 0;
+        for (id run in TBArr(d[@"runs"])) {
+            NSDictionary *r = TBDict(run);
+            NSString *t = TBStr(r[@"text"]);
+            if (!t) continue;
+            NSString *url = TBEndpointURL(r[@"navigationEndpoint"]);
+            if (url.length && TBRunTextIsLink(t)) [links addObject:[TBTextLink linkWithRange:NSMakeRange(offset, t.length) url:url]];
+            offset += t.length;
+        }
+        return links.count ? links : nil;
+    }
+    // {"content", "commandRuns": [{"startIndex", "length", "onTap": {"innertubeCommand": …}}]}
+    NSString *content = TBStr(d[@"content"]) ?: @"";
+    for (id run in TBArr(d[@"commandRuns"])) {
+        NSDictionary *r = TBDict(run);
+        NSInteger start = TBInt(r[@"startIndex"]), length = TBInt(r[@"length"]);
+        if (start < 0 || length <= 0 || (NSUInteger)(start + length) > content.length) continue;
+        NSString *t = [content substringWithRange:NSMakeRange((NSUInteger)start, (NSUInteger)length)];
+        NSString *url = TBEndpointURL(TBDict(r[@"onTap"])[@"innertubeCommand"]);
+        if (url.length && TBRunTextIsLink(t)) [links addObject:[TBTextLink linkWithRange:NSMakeRange((NSUInteger)start, (NSUInteger)length) url:url]];
+    }
+    return links.count ? links : nil;
+}
+
 // iOS 6 has no WebP decoder. i.ytimg.com answers with WebP whenever the "sqp" query is there (whatever the Accept
 // header says), and the avatar servers when the size options carry "-rw": both are turned into their JPEG form.
 NSString *TBImageURL(NSString *url)
