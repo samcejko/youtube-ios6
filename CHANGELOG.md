@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.3.1 (2026-10-14)
+
+- Settings → About has a "Support the development" row that opens the author's Ko-fi page. The app stays free.
+- Tubie is in the Cydia repository `http://samcejko.eu/repo/` now: add it as a source in Cydia to get updates.
+
 ## 0.3.0 (2026-10-04)
 
 - Chapters: a video whose description lists timestamps now shows chapter marks on the scrubber, the current chapter's

@@ -1,5 +1,6 @@
 #import "TBSettingsViewController.h"
 #import "TBChoiceViewController.h"
+#import "TBExternalOpen.h"
 #import "TBGoogleLoginViewController.h"
 #import "TBAccount.h"
 #import "TBExtras.h"
@@ -175,7 +176,7 @@ typedef NS_ENUM(NSInteger, TBSettingsSection) {
         case TBSectionPrivacy: return 3;
         case TBSectionAppearance: return 1;
         case TBSectionAdvanced: return 3;
-        case TBSectionAbout: return 4;
+        case TBSectionAbout: return 5;
         default: return 0;
     }
 }
@@ -353,7 +354,13 @@ typedef NS_ENUM(NSInteger, TBSettingsSection) {
             if (row == 0) { cell.textLabel.text = L(@"Version"); cell.detailTextLabel.text = [TBUtils appVersion]; }
             else if (row == 1) { cell.textLabel.text = L(@"Author"); cell.detailTextLabel.text = @"samcejko"; }
             else if (row == 2) { cell.textLabel.text = L(@"Root certificates"); cell.detailTextLabel.text = [NSString stringWithFormat:@"%ld", (long)[TBTLSSocket caCertificateCount]]; }
-            else { cell.textLabel.text = L(@"Device"); cell.detailTextLabel.text = [NSString stringWithFormat:@"%@ · iOS %@", [TBUtils deviceModel], [UIDevice currentDevice].systemVersion]; }
+            else if (row == 3) { cell.textLabel.text = L(@"Device"); cell.detailTextLabel.text = [NSString stringWithFormat:@"%@ · iOS %@", [TBUtils deviceModel], [UIDevice currentDevice].systemVersion]; }
+            else {
+                cell.textLabel.text = L(@"Support the development");
+                cell.detailTextLabel.text = @"ko-fi.com/samcejko";
+                cell.accessoryType = UITableViewCellAccessoryDisclosureIndicator;
+                cell.selectionStyle = UITableViewCellSelectionStyleBlue;
+            }
             break;
         default: break;
     }
@@ -517,6 +524,8 @@ typedef NS_ENUM(NSInteger, TBSettingsSection) {
         [tableView reloadData];
     } else if (sec == TBSectionAdvanced && row == 2) {
         [self runConnectionTest];
+    } else if (sec == TBSectionAbout && row == 4) {
+        [TBExternalOpen presentOpenInForURL:[NSURL URLWithString:@"https://ko-fi.com/samcejko"] from:self anchor:[tableView cellForRowAtIndexPath:indexPath]];
     }
 }
 

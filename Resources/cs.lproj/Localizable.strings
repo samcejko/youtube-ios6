@@ -239,6 +239,7 @@
 "The app's Google client is not set up correctly." = "Klient Google této aplikace není správně nastavený.";
 "Google answered with an error (HTTP %ld)." = "Google odpověděl chybou (HTTP %ld).";
 "Not signed in." = "Nepřihlášeno.";
+"Support the development" = "Podpořit vývoj";
 "The daily limit of YouTube's API is used up; it starts over at 9:00 (Pacific midnight)." = "Denní limit API YouTube je vyčerpaný; obnoví se v 9:00 (půlnoc pacifického času).";
 "YouTube's API answered with an error (HTTP %ld)." = "API YouTube odpovědělo chybou (HTTP %ld).";
 "Like" = "Líbí se mi";
