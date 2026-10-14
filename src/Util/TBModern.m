@@ -739,6 +739,15 @@ static void TBInstallIOS13Behaviour(void)
 }
 #endif
 
+#pragma mark - Tables
+
+void TBModernSetTableViewDark(UITableView *tableView, BOOL dark)
+{
+#if __IPHONE_OS_VERSION_MAX_ALLOWED >= 130000
+    // (the forced light style of the app would draw dark grey section headers on a dark table)
+    if (TBAtLeast(13)) tableView.overrideUserInterfaceStyle = dark ? UIUserInterfaceStyleDark : UIUserInterfaceStyleLight;
+#endif
+}
 #pragma mark - Set-up
 
 static BOOL TBsetUpDone = NO;
