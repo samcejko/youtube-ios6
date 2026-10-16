@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.4.3 (2026-10-16)
+
+- The app icon now has the standard iOS rounded corners baked in (UIPrerenderedIcon), matching the other apps on the home screen and in package managers (Cydia, Sileo, Zebra) instead of showing as a square tile.
+
 ## 0.4.2 (2026-10-14)
 
 - Playback speed works now. iOS 6's player cannot change the speed of an HLS stream (it silently stayed at 1×, and

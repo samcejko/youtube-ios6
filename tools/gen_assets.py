@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """Generates the app icon and launch images for iOS 6 (run in CI, needs Pillow and rsvg-convert).
 
-The icon is tools/icon.svg: a glass television with a play sign on a red aqua tile, with
-its own gloss (UIPrerenderedIcon is on, like Surfari's icon).
+The icon is tools/icon.svg: a glass television with a play sign on a red aqua tile (UIPrerenderedIcon is on, so the
+rounded corners and gloss are baked in ourselves).
 
 Usage: python3 tools/gen_assets.py Resources
 """
@@ -86,6 +86,21 @@ def make_icon(size):
     return base_icon().resize((size, size), LANCZOS)
 
 
+def rounded_mask(size, radius_ratio=0.1757):
+    scale = 4
+    big = size * scale
+    mask = Image.new("L", (big, big), 0)
+    ImageDraw.Draw(mask).rounded_rectangle((0, 0, big - 1, big - 1), radius=int(big * radius_ratio), fill=255)
+    return mask.resize((size, size), LANCZOS)
+
+
+def make_home_icon(size):
+    # UIPrerenderedIcon is on, so bake the iOS rounded corners in ourselves
+    icon = make_icon(size).convert("RGBA")
+    icon.putalpha(rounded_mask(size))
+    return icon
+
+
 def make_launch(w, h):
     img = vertical_gradient((w, h), (236, 238, 243), (214, 217, 226))
     d = ImageDraw.Draw(img)
@@ -136,16 +151,12 @@ LAUNCH = {
 }
 
 for name, size in ICONS.items():
-    make_icon(size).save(os.path.join(OUT, name), "PNG")
+    make_home_icon(size).save(os.path.join(OUT, name), "PNG")
     print("icon", name)
 
 for name, (w, h) in LAUNCH.items():
     make_launch(w, h).save(os.path.join(OUT, name), "PNG")
     print("launch", name)
 for name, size in LOGOS.items():
-    logo = make_icon(size).convert("RGBA")
-    corners = Image.new("L", (size, size), 0)
-    ImageDraw.Draw(corners).rounded_rectangle((0, 0, size - 1, size - 1), radius=int(size * 0.2237), fill=255)
-    logo.putalpha(corners)
-    logo.save(os.path.join(OUT, name), "PNG")
+    make_home_icon(size).save(os.path.join(OUT, name), "PNG")
     print("logo", name)

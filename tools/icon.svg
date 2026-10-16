@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<!-- Tubie app icon (master, full-bleed square: iOS rounds the corners). Rendered by tools/gen_assets.py with
+<!-- Tubie app icon (tools/icon.svg: UIPrerenderedIcon bakes the rounded corners later). Rendered by tools/gen_assets.py with
      rsvg-convert. A glass television screen with a play sign on a red aqua tile - the shape of the YouTube idea in the
      language of 2012 icons. The icon carries its own gloss (UIPrerenderedIcon is on). -->
 <svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 160 160">
