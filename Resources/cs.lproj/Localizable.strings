@@ -258,3 +258,7 @@
 "Your account follows no channels yet." = "Tvůj účet zatím neodebírá žádné kanály.";
 
 "Turn certificate verification off only if the device clock is wrong or the certificate bundle is outdated." = "Ověřování certifikátů vypni jen tehdy, když jdou hodiny zařízení špatně nebo je balík certifikátů zastaralý.";
+
+"%@ likes" = "%@ označení Líbí se mi";
+
+"Hearted by creator" = "Autor označil srdíčkem";

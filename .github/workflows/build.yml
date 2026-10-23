@@ -124,7 +124,9 @@ jobs:
           ls -la Resources/licenses
 
       - name: Generate icons and launch images
-        run: python3 tools/gen_assets.py Resources
+        run: |
+          python3 tools/gen_assets.py Resources
+          python3 tools/check_icon_corners.py Resources
 
       - name: Patch the iOS 9.3 SDK (stub re-exported libraries missing from theos/sdks)
         run: |

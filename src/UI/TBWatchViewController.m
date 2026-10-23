@@ -1499,8 +1499,8 @@ typedef NS_ENUM(NSInteger, TBWatchSection) {
         case 0: {   // like / dislike: the account rates; without one the counts are all there is
             if ([[TBAccount shared] isSignedIn]) {
                 UIActionSheet *sheet = [[UIActionSheet alloc] initWithTitle:L(@"Rating") delegate:self cancelButtonTitle:nil destructiveButtonTitle:nil otherButtonTitles:nil];
-                [sheet addButtonWithTitle:[NSString stringWithFormat:@"👍 %@%@", L(@"Like"), [self.rating isEqualToString:@"like"] ? @" ✓" : @""]];
-                [sheet addButtonWithTitle:[NSString stringWithFormat:@"👎 %@%@", L(@"Dislike"), [self.rating isEqualToString:@"dislike"] ? @" ✓" : @""]];
+                [sheet addButtonWithTitle:[NSString stringWithFormat:@"%@%@", L(@"Like"), [self.rating isEqualToString:@"like"] ? @" ✓" : @""]];
+                [sheet addButtonWithTitle:[NSString stringWithFormat:@"%@%@", L(@"Dislike"), [self.rating isEqualToString:@"dislike"] ? @" ✓" : @""]];
                 [sheet addButtonWithTitle:L(@"Remove rating")];
                 sheet.cancelButtonIndex = [sheet addButtonWithTitle:L(@"Cancel")];
                 self.pendingSheet = 5;
@@ -1670,9 +1670,9 @@ typedef NS_ENUM(NSInteger, TBWatchSection) {
             [t styleCell:cell];
             NSString *likes = self.votes ? [TBUtils formatCount:(NSInteger)MIN(self.votes.likes, (long long)NSIntegerMax)] : (self.info.likesText ?: @"–");
             NSString *dislikes = self.votes && [TBSettings showDislikes] ? [TBUtils formatCount:(NSInteger)MIN(self.votes.dislikes, (long long)NSIntegerMax)] : nil;
-            NSString *rating = dislikes ? [NSString stringWithFormat:@"👍 %@  👎 %@", likes, dislikes] : [NSString stringWithFormat:@"👍 %@", likes];
-            if ([self.rating isEqualToString:@"like"]) rating = [NSString stringWithFormat:@"👍 ✓ %@", likes];
-            else if ([self.rating isEqualToString:@"dislike"]) rating = [NSString stringWithFormat:@"👎 ✓ %@", dislikes ?: @""];
+            NSString *rating = dislikes ? [NSString stringWithFormat:@"%@: %@ / %@: %@", L(@"Like"), likes, L(@"Dislike"), dislikes] : [NSString stringWithFormat:@"%@: %@", L(@"Like"), likes];
+            if ([self.rating isEqualToString:@"like"]) rating = [NSString stringWithFormat:@"%@ ✓ %@", L(@"Like"), likes];
+            else if ([self.rating isEqualToString:@"dislike"]) rating = [NSString stringWithFormat:@"%@ ✓ %@", L(@"Dislike"), dislikes ?: @""];
             BOOL later = [[TBLibrary shared] isInWatchLater:self.video.videoId];
             NSArray *titles = @[ rating, later ? L(@"✓ Later") : L(@"Watch later"), self.captionTrack ? L(@"CC ✓") : L(@"CC"),
                                  self.source.isLive ? L(@"Live") : [NSString stringWithFormat:@"%g×", self.playbackRate] ];

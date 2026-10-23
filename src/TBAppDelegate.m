@@ -10,6 +10,8 @@
 #import "TBUtils.h"
 #import "TBModern.h"
 #import "TBCommon.h"
+#import "TBInnertube.h"
+#import "MusicHandoff.h"
 #include <dlfcn.h>
 #include <signal.h>
 #include <mach/mach.h>
@@ -91,6 +93,8 @@ static BOOL TBPressView(UIView *v, NSString *text)
 
 @implementation TBAppDelegate
 
+static NSUInteger TBHandoffGeneration;
+
 - (BOOL)application:(UIApplication *)application didFinishLaunchingWithOptions:(NSDictionary *)launchOptions
 {
     // (a peer that went away must not kill the process while a socket is written to)
@@ -119,6 +123,7 @@ static BOOL TBPressView(UIView *v, NSString *text)
 // logs the memory in use. The commands need a file named "debug" in the app's Documents.
 - (BOOL)application:(UIApplication *)application openURL:(NSURL *)url sourceApplication:(NSString *)sourceApplication annotation:(id)annotation
 {
+    TBHandoffGeneration++;
     NSString *s = url.absoluteString ?: @"";
     if ([s hasPrefix:@"http://"] || [s hasPrefix:@"https://"]) return [TBNavigator openURL:url from:self.rootViewController];
     if (![s hasPrefix:@"tubie:"]) return NO;
@@ -131,6 +136,36 @@ static BOOL TBPressView(UIView *v, NSString *text)
         target = [target substringToIndex:q.location];
     }
     NSDictionary *params = query.length ? [TBUtils parseQuery:query] : @{};
+    if (([target isEqualToString:@"play"] || ([target isEqualToString:@"search"] && [params[@"autoplay"] isEqualToString:@"1"])) && [params[@"title"] length]) {
+        NSUInteger generation = TBHandoffGeneration;
+        NSString *videoId = MHYouTubeID(params[@"url"]);
+        if (videoId.length) {
+            [TBNavigator openVideoId:videoId from:self.rootViewController];
+            return YES;
+        }
+        NSString *title = params[@"title"], *artist = params[@"artist"] ?: @"";
+        NSString *query = [NSString stringWithFormat:@"%@ %@ audio", title, artist];
+        double duration = MHDuration(params[@"duration"]);
+        // Show useful results immediately while checking for a confident playable match.
+        [self.rootViewController searchFor:query];
+        UIViewController *searchTab = self.rootViewController.selectedViewController;
+        [TBInnertube search:query filter:TBSearchFilterVideos continuation:nil completion:^(NSArray *items, NSString *continuation, NSError *error) {
+            if (generation != TBHandoffGeneration || self.rootViewController.selectedViewController != searchTab || self.rootViewController.presentedViewController) return;
+            TBVideo *best = nil;
+            double bestDifference = HUGE_VAL;
+            for (id item in items) {
+                if (![item isKindOfClass:[TBVideo class]]) continue;
+                TBVideo *video = item;
+                if (!video.videoId.length || video.isLive || video.isUpcoming) continue;
+                if (!MHMatches(title, artist, duration, video.title, video.channelName, video.lengthSeconds, YES)) continue;
+                double difference = duration > 0 ? fabs(duration - video.lengthSeconds) : 0;
+                if (!best || difference < bestDifference) { best = video; bestDifference = difference; }
+            }
+            if (best) [TBNavigator openVideo:best from:self.rootViewController];
+            // An uncertain match leaves the results visible for the user's choice.
+        }];
+        return YES;
+    }
     if ([target hasPrefix:@"watch/"]) {
         [TBNavigator openVideoId:[target substringFromIndex:@"watch/".length] from:self.rootViewController];
         return YES;
