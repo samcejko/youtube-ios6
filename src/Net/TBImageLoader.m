@@ -155,7 +155,11 @@ static UIImage *TBDecodeImage(NSData *data, CGFloat maxPixels, BOOL animate, NSU
 @property (nonatomic, strong) NSMutableArray *queue;          // jobs not started yet, the newest last
 @property (nonatomic, strong) NSMutableDictionary *failed;    // url -> NSDate
 @property (nonatomic) NSInteger running;
+#if OS_OBJECT_USE_OBJC
 @property (nonatomic, strong) dispatch_queue_t workQueue;
+#else
+@property (nonatomic, assign) dispatch_queue_t workQueue;
+#endif
 @property (nonatomic, copy) NSString *directory;
 @end
 
@@ -186,6 +190,14 @@ static UIImage *TBDecodeImage(NSData *data, CGFloat maxPixels, BOOL animate, NSU
                                                      name:UIApplicationDidReceiveMemoryWarningNotification object:nil];
     }
     return self;
+}
+
+- (void)dealloc
+{
+    [[NSNotificationCenter defaultCenter] removeObserver:self];
+#if !OS_OBJECT_USE_OBJC
+    if (_workQueue) dispatch_release(_workQueue);
+#endif
 }
 
 - (NSString *)pathForURL:(NSString *)url
