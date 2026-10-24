@@ -1,5 +1,5 @@
 # Tubie - YouTube client for jailbroken iOS with its own TLS stack. One source tree, two packages (Theos):
-#   make package                               armv7 for iOS 6.x (the iOS 9.3 SDK, deployment target 6.0)
+#   make package                               armv7 for iOS 5-10 (the iOS 9.3 SDK, deployment target 5.0)
 #   make package THEOS_PACKAGE_SCHEME=rootless arm64 for iOS 14-17 (the iOS 16.5 SDK, deployment target 14.0):
 #                                              the .deb for rootless jailbreaks, the IPA for TrollStore
 # (`make clean` between the two; CI builds both, see .github/workflows/build.yml)
@@ -8,7 +8,7 @@ ifeq ($(THEOS_PACKAGE_SCHEME),rootless)
 TARGET := iphone:clang:16.5:14.0
 ARCHS := arm64
 else
-TARGET := iphone:clang:9.3:6.0
+TARGET := iphone:clang:9.3:5.0
 ARCHS := armv7
 endif
 DEBUG ?= 0
@@ -21,14 +21,14 @@ include $(THEOS)/makefiles/common.mk
 
 APPLICATION_NAME := Tubie
 
-Tubie_FILES := $(wildcard src/*.m) $(wildcard src/*/*.m) \
+Tubie_FILES := $(wildcard vendor/PSTCollectionView/*.m)  $(wildcard src/*.m) $(wildcard src/*/*.m) \
                   vendor/mbedtls_glue.c \
                   $(wildcard vendor/mbedtls/library/*.c)
 
 Tubie_FRAMEWORKS := UIKit Foundation CoreGraphics QuartzCore CoreText Security ImageIO AVFoundation CoreMedia CoreVideo MediaPlayer AudioToolbox
 
 # Flags for every C-family file (also the vendored mbedTLS sources)
-Tubie_CFLAGS := -Isrc -Isrc/Net -Isrc/YouTube -Isrc/UI -Isrc/Util \
+Tubie_CFLAGS := -Ivendor/PSTCollectionView  -Isrc -Isrc/Net -Isrc/YouTube -Isrc/UI -Isrc/Util \
                    -Ivendor -Ivendor/mbedtls/include -Ivendor/mbedtls/library \
                    -Os -fvisibility=hidden \
                    -Wall -Wno-unused-variable -Wno-unused-function -Wno-unused-but-set-variable \
@@ -61,7 +61,7 @@ after-stage::
 	ldid -S"$(THEOS_PROJECT_DIR)/entitlements-arm64.xml" "$(TUBIE_STAGED_BIN)"
 # The .deb is for rootless jailbreaks (iOS 15 and newer; Theos sets Architecture: iphoneos-arm64 and the /var/jb
 # prefix itself) and tells the home screen about the app when installed or removed. The control file's Depends line
-# (iOS 6.0 up to 10.x for the 32-bit package) is replaced whole.
+# (iOS 5.0 up to 10.x for the 32-bit package) is replaced whole.
 before-package::
 	sed -i -e 's/^Depends: .*/Depends: firmware (>= 15.0)/' "$(THEOS_STAGING_DIR)/DEBIAN/control"
 	printf '%s\n' '#!/bin/sh' '[ "$$1" = configure ] || exit 0' \

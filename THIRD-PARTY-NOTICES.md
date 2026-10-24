@@ -16,3 +16,8 @@ The app talks to the following services on the user's behalf:
   The full text is shipped inside the app (`licenses/mbedtls-LICENSE.txt`).
 - **Mozilla CA certificate bundle** (curl.se/ca/cacert.pem) - Mozilla Public License 2.0.
 - **Theos** build system - used at build time only.
+
+- **PSTCollectionView** - Copyright 2012-2013 Peter Steinberger and contributors. MIT License.
+  Provides the grid on iOS 5, selecting UIKit on newer systems when its runtime layout permits.
+  The full license is shipped in `licenses/PSTCollectionView-LICENSE.txt`; pinned source details are in
+  `vendor/PSTCollectionView/UPSTREAM.txt`.

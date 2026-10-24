@@ -321,7 +321,7 @@ typedef NS_ENUM(NSInteger, TBWatchSection) {
     self.tableView.dataSource = self;
     self.tableView.delegate = self;
     self.tableView.tableFooterView = [[UIView alloc] initWithFrame:CGRectZero];
-    [self.tableView registerClass:[TBVideoTableCell class] forCellReuseIdentifier:[TBVideoTableCell reuseIdentifier]];
+
     [self.view addSubview:self.tableView];
     [self applyTheme];
 
@@ -374,6 +374,7 @@ typedef NS_ENUM(NSInteger, TBWatchSection) {
 }
 
 - (BOOL)canBecomeFirstResponder { return YES; }
+- (BOOL)shouldAutorotateToInterfaceOrientation:(UIInterfaceOrientation)orientation { return TBIsPad() || orientation != UIInterfaceOrientationPortraitUpsideDown; }
 - (BOOL)shouldAutorotate { return YES; }
 - (UIInterfaceOrientationMask)supportedInterfaceOrientations { return TBIsPad() ? UIInterfaceOrientationMaskAll : UIInterfaceOrientationMaskAllButUpsideDown; }
 
@@ -1762,7 +1763,8 @@ typedef NS_ENUM(NSInteger, TBWatchSection) {
             return cell;
         }
         case TBWatchSectionRelated: {
-            TBVideoTableCell *cell = [tableView dequeueReusableCellWithIdentifier:[TBVideoTableCell reuseIdentifier] forIndexPath:indexPath];
+            TBVideoTableCell *cell = [tableView dequeueReusableCellWithIdentifier:[TBVideoTableCell reuseIdentifier]];
+            if (!cell) cell = [[TBVideoTableCell alloc] initWithStyle:UITableViewCellStyleDefault reuseIdentifier:[TBVideoTableCell reuseIdentifier]];
             id item = self.info.related[(NSUInteger)indexPath.row];
             if ([item isKindOfClass:[TBPlaylist class]]) [cell configureWithPlaylist:item];
             else [cell configureWithVideo:item];

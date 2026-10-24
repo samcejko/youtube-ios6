@@ -50,7 +50,7 @@
 - (void)viewDidLoad
 {
     [super viewDidLoad];
-    [self.tableView registerClass:[TBCommentCell class] forCellReuseIdentifier:[TBCommentCell reuseIdentifier]];
+
     if ([self canPost]) {
         self.navigationItem.rightBarButtonItem = [[UIBarButtonItem alloc] initWithTitle:(self.replyParentId.length ? L(@"Reply") : L(@"Add")) style:UIBarButtonItemStyleBordered target:self action:@selector(composeTapped)];
     }
@@ -159,7 +159,8 @@
 
 - (UITableViewCell *)tableView:(UITableView *)tableView cellForRowAtIndexPath:(NSIndexPath *)indexPath
 {
-    TBCommentCell *cell = [tableView dequeueReusableCellWithIdentifier:[TBCommentCell reuseIdentifier] forIndexPath:indexPath];
+    TBCommentCell *cell = [tableView dequeueReusableCellWithIdentifier:[TBCommentCell reuseIdentifier]];
+            if (!cell) cell = [[TBCommentCell alloc] initWithStyle:UITableViewCellStyleDefault reuseIdentifier:[TBCommentCell reuseIdentifier]];
     [cell configureWithComment:self.comments[(NSUInteger)indexPath.row]];
     __weak TBCommentsViewController *weakSelf = self;
     cell.onLink = ^(NSString *url, UIView *anchor) { [TBNavigator openLink:[NSURL URLWithString:url] from:weakSelf anchor:anchor]; };

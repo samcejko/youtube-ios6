@@ -1,4 +1,4 @@
-name: Build Tubie (iOS 6 armv7 + iOS 14 arm64)
+name: Build Tubie (iOS 5-10 armv7 + iOS 14 arm64)
 
 on:
   push:
@@ -29,13 +29,13 @@ jobs:
           /tmp/check-studio
   build:
     needs: playback-test
-    # One source tree, two packages: armv7 for iOS 6 (Cydia, ipainstaller) and arm64 for iOS 14-17 (the .deb for
+    # One source tree, two packages: armv7 for iOS 5-10 (Cydia, ipainstaller) and arm64 for iOS 14-17 (the .deb for
     # rootless jailbreaks, the IPA for TrollStore). THEOS_PACKAGE_SCHEME=rootless selects the latter in the Makefile.
     strategy:
       fail-fast: false
       matrix:
         include:
-          - name: ios6-armv7
+          - name: ios5-armv7
             scheme: ""
             suffix: ""
             artifact: Tubie-packages
@@ -132,6 +132,7 @@ jobs:
           cp LICENSE Resources/licenses/Tubie-LICENSE.txt
           cp THIRD-PARTY-NOTICES.md Resources/licenses/THIRD-PARTY-NOTICES.txt
           cp vendor/mbedtls/LICENSE Resources/licenses/mbedtls-LICENSE.txt
+          cp vendor/PSTCollectionView/LICENSE Resources/licenses/PSTCollectionView-LICENSE.txt
           ls -la Resources/licenses
 
       - name: Generate icons and launch images

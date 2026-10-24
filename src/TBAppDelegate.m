@@ -1,3 +1,4 @@
+#import "PSTCollectionView.h"
 #import "TBAppDelegate.h"
 #import "TBRootViewController.h"
 #import "TBWatchViewController.h"
@@ -85,15 +86,15 @@ static BOOL TBPressView(UIView *v, NSString *text)
         [delegate tableView:(UITableView *)table didSelectRowAtIndexPath:ip];
         return YES;
     }
-    if ([v isKindOfClass:[UICollectionViewCell class]]) {
-        UICollectionViewCell *cell = (UICollectionViewCell *)v;
+    if ([v isKindOfClass:[PSUICollectionViewCell class]]) {
+        PSUICollectionViewCell *cell = (PSUICollectionViewCell *)v;
         if (!TBViewContainsText(cell, text)) return NO;
         UIView *grid = cell.superview;
-        while (grid && ![grid isKindOfClass:[UICollectionView class]]) grid = grid.superview;
-        NSIndexPath *ip = [(UICollectionView *)grid indexPathForCell:cell];
-        id<UICollectionViewDelegate> delegate = [(UICollectionView *)grid delegate];
+        while (grid && ![grid isKindOfClass:[PSUICollectionView class]]) grid = grid.superview;
+        NSIndexPath *ip = [(PSUICollectionView *)grid indexPathForCell:cell];
+        id<PSUICollectionViewDelegate> delegate = [(PSUICollectionView *)grid delegate];
         if (!ip || ![delegate respondsToSelector:@selector(collectionView:didSelectItemAtIndexPath:)]) return NO;
-        [delegate collectionView:(UICollectionView *)grid didSelectItemAtIndexPath:ip];
+        [delegate collectionView:(PSUICollectionView *)grid didSelectItemAtIndexPath:ip];
         return YES;
     }
     return NO;

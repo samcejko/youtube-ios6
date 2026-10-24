@@ -1,3 +1,4 @@
+#import "TBRefreshControl.h"
 #import "TBGridViewController.h"
 #import "TBCells.h"
 #import "TBNavigator.h"
@@ -8,7 +9,7 @@
 
 static NSString * const kFooterId = @"footer";
 
-@interface TBGridFooterView : UICollectionReusableView
+@interface TBGridFooterView : PSUICollectionReusableView
 @property (nonatomic, strong) UIActivityIndicatorView *spinner;
 @end
 
@@ -27,16 +28,16 @@ static NSString * const kFooterId = @"footer";
 }
 @end
 
-@interface TBGridViewController () <UICollectionViewDataSource, UICollectionViewDelegateFlowLayout, UIActionSheetDelegate>
-@property (nonatomic, strong) UICollectionView *collectionView;
-@property (nonatomic, strong) UICollectionViewFlowLayout *layout;
+@interface TBGridViewController () <PSUICollectionViewDataSource, PSUICollectionViewDelegateFlowLayout, UIActionSheetDelegate>
+@property (nonatomic, strong) PSUICollectionView *collectionView;
+@property (nonatomic, strong) PSUICollectionViewFlowLayout *layout;
 @property (nonatomic, strong) NSMutableArray *sections;        // TBShelf; a plain list is one shelf without a title
 @property (nonatomic, copy) NSString *nextContinuation;
 @property (nonatomic) BOOL hasMore;
 @property (nonatomic) BOOL loading;
 @property (nonatomic) BOOL fixedList;
 @property (nonatomic, strong) TBHTTPTask *task;
-@property (nonatomic, strong) UIRefreshControl *refreshControl;
+@property (nonatomic, strong) TBRefreshControl *refreshControl;
 @property (nonatomic, strong) UILabel *messageLabel;
 @property (nonatomic, strong) UIButton *retryButton;
 @property (nonatomic, strong) UIActivityIndicatorView *spinner;
@@ -91,9 +92,9 @@ static NSString * const kFooterId = @"footer";
 - (void)viewDidLoad
 {
     [super viewDidLoad];
-    self.layout = [[UICollectionViewFlowLayout alloc] init];
-    self.layout.scrollDirection = UICollectionViewScrollDirectionVertical;
-    self.collectionView = [[UICollectionView alloc] initWithFrame:self.view.bounds collectionViewLayout:self.layout];
+    self.layout = [[PSUICollectionViewFlowLayout alloc] init];
+    self.layout.scrollDirection = PSTCollectionViewScrollDirectionVertical;
+    self.collectionView = [[PSUICollectionView alloc] initWithFrame:self.view.bounds collectionViewLayout:self.layout];
     self.collectionView.autoresizingMask = UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleHeight;
     self.collectionView.dataSource = self;
     self.collectionView.delegate = self;
@@ -101,11 +102,12 @@ static NSString * const kFooterId = @"footer";
     [self.collectionView registerClass:[TBVideoCell class] forCellWithReuseIdentifier:[TBVideoCell reuseIdentifier]];
     [self.collectionView registerClass:[TBShortCell class] forCellWithReuseIdentifier:[TBShortCell reuseIdentifier]];
     [self.collectionView registerClass:[TBChannelCell class] forCellWithReuseIdentifier:[TBChannelCell reuseIdentifier]];
-    [self.collectionView registerClass:[TBGridFooterView class] forSupplementaryViewOfKind:UICollectionElementKindSectionFooter withReuseIdentifier:kFooterId];
-    [self.collectionView registerClass:[TBGridHeaderView class] forSupplementaryViewOfKind:UICollectionElementKindSectionHeader withReuseIdentifier:[TBGridHeaderView reuseIdentifier]];
+    [self.collectionView registerClass:[TBGridFooterView class] forSupplementaryViewOfKind:PSTCollectionElementKindSectionFooter withReuseIdentifier:kFooterId];
+    [self.collectionView registerClass:[TBGridHeaderView class] forSupplementaryViewOfKind:PSTCollectionElementKindSectionHeader withReuseIdentifier:[TBGridHeaderView reuseIdentifier]];
     [self.view addSubview:self.collectionView];
 
-    self.refreshControl = [[UIRefreshControl alloc] init];
+    Class refreshClass = NSClassFromString(@"UIRefreshControl") ?: [TBRefreshControl class];
+    self.refreshControl = [[refreshClass alloc] init];
     [self.refreshControl addTarget:self action:@selector(pulled) forControlEvents:UIControlEventValueChanged];
     [self.collectionView addSubview:self.refreshControl];
 
@@ -405,7 +407,7 @@ static NSString * const kFooterId = @"footer";
     return floor((width - 2 * inset - (columns - 1) * spacing) / columns);
 }
 
-- (CGSize)collectionView:(UICollectionView *)collectionView layout:(UICollectionViewLayout *)layout sizeForItemAtIndexPath:(NSIndexPath *)indexPath
+- (CGSize)collectionView:(PSUICollectionView *)collectionView layout:(PSUICollectionViewLayout *)layout sizeForItemAtIndexPath:(NSIndexPath *)indexPath
 {
     CGFloat w = [self itemWidthInSection:indexPath.section];
     id item = [self itemAt:indexPath];
@@ -415,32 +417,32 @@ static NSString * const kFooterId = @"footer";
     return CGSizeMake(w, [TBVideoCell rowHeight]);
 }
 
-- (UIEdgeInsets)collectionView:(UICollectionView *)collectionView layout:(UICollectionViewLayout *)layout insetForSectionAtIndex:(NSInteger)section
+- (UIEdgeInsets)collectionView:(PSUICollectionView *)collectionView layout:(PSUICollectionViewLayout *)layout insetForSectionAtIndex:(NSInteger)section
 {
     UIEdgeInsets safe = TBSafeAreaInsets(self.view);
     if ([self shortsSection:section]) return UIEdgeInsetsMake(6, 8 + safe.left, 10, 8 + safe.right);
     return [self usesCards] ? UIEdgeInsetsMake(8, 8 + safe.left, 8, 8 + safe.right) : UIEdgeInsetsMake(0, safe.left, 0, safe.right);
 }
 
-- (CGFloat)collectionView:(UICollectionView *)collectionView layout:(UICollectionViewLayout *)layout minimumInteritemSpacingForSectionAtIndex:(NSInteger)section
+- (CGFloat)collectionView:(PSUICollectionView *)collectionView layout:(PSUICollectionViewLayout *)layout minimumInteritemSpacingForSectionAtIndex:(NSInteger)section
 {
     if ([self shortsSection:section]) return 6;
     return [self usesCards] ? 8 : 0;
 }
 
-- (CGFloat)collectionView:(UICollectionView *)collectionView layout:(UICollectionViewLayout *)layout minimumLineSpacingForSectionAtIndex:(NSInteger)section
+- (CGFloat)collectionView:(PSUICollectionView *)collectionView layout:(PSUICollectionViewLayout *)layout minimumLineSpacingForSectionAtIndex:(NSInteger)section
 {
     if ([self shortsSection:section]) return 8;
     return [self usesCards] ? 8 : 1;
 }
 
-- (CGSize)collectionView:(UICollectionView *)collectionView layout:(UICollectionViewLayout *)layout referenceSizeForFooterInSection:(NSInteger)section
+- (CGSize)collectionView:(PSUICollectionView *)collectionView layout:(PSUICollectionViewLayout *)layout referenceSizeForFooterInSection:(NSInteger)section
 {
     BOOL last = section == (NSInteger)self.sections.count - 1;
     return CGSizeMake(self.view.bounds.size.width, (last && self.hasMore) ? 44 : 4);
 }
 
-- (CGSize)collectionView:(UICollectionView *)collectionView layout:(UICollectionViewLayout *)layout referenceSizeForHeaderInSection:(NSInteger)section
+- (CGSize)collectionView:(PSUICollectionView *)collectionView layout:(PSUICollectionViewLayout *)layout referenceSizeForHeaderInSection:(NSInteger)section
 {
     TBShelf *shelf = self.sections[(NSUInteger)section];
     return CGSizeMake(self.view.bounds.size.width, shelf.title.length ? [TBGridHeaderView height] : 0);
@@ -456,17 +458,17 @@ static NSString * const kFooterId = @"footer";
     return shelf.items[(NSUInteger)indexPath.item];
 }
 
-- (NSInteger)numberOfSectionsInCollectionView:(UICollectionView *)collectionView
+- (NSInteger)numberOfSectionsInCollectionView:(PSUICollectionView *)collectionView
 {
     return (NSInteger)self.sections.count;
 }
 
-- (NSInteger)collectionView:(UICollectionView *)collectionView numberOfItemsInSection:(NSInteger)section
+- (NSInteger)collectionView:(PSUICollectionView *)collectionView numberOfItemsInSection:(NSInteger)section
 {
     return (NSInteger)[self.sections[(NSUInteger)section] items].count;
 }
 
-- (UICollectionViewCell *)collectionView:(UICollectionView *)collectionView cellForItemAtIndexPath:(NSIndexPath *)indexPath
+- (PSUICollectionViewCell *)collectionView:(PSUICollectionView *)collectionView cellForItemAtIndexPath:(NSIndexPath *)indexPath
 {
     id item = [self itemAt:indexPath];
     if ([self shortsSection:indexPath.section]) {
@@ -488,9 +490,9 @@ static NSString * const kFooterId = @"footer";
     return cell;
 }
 
-- (UICollectionReusableView *)collectionView:(UICollectionView *)collectionView viewForSupplementaryElementOfKind:(NSString *)kind atIndexPath:(NSIndexPath *)indexPath
+- (PSUICollectionReusableView *)collectionView:(PSUICollectionView *)collectionView viewForSupplementaryElementOfKind:(NSString *)kind atIndexPath:(NSIndexPath *)indexPath
 {
-    if ([kind isEqualToString:UICollectionElementKindSectionHeader]) {
+    if ([kind isEqualToString:PSTCollectionElementKindSectionHeader]) {
         TBGridHeaderView *header = [collectionView dequeueReusableSupplementaryViewOfKind:kind withReuseIdentifier:[TBGridHeaderView reuseIdentifier] forIndexPath:indexPath];
         TBShelf *shelf = self.sections[(NSUInteger)indexPath.section];
         [header applyTheme];
@@ -514,7 +516,7 @@ static NSString * const kFooterId = @"footer";
     if (button.tag < (NSInteger)self.sections.count && self.onSelectShelf) self.onSelectShelf(self.sections[(NSUInteger)button.tag]);
 }
 
-- (void)collectionView:(UICollectionView *)collectionView didSelectItemAtIndexPath:(NSIndexPath *)indexPath
+- (void)collectionView:(PSUICollectionView *)collectionView didSelectItemAtIndexPath:(NSIndexPath *)indexPath
 {
     [collectionView deselectItemAtIndexPath:indexPath animated:YES];
     id item = [self itemAt:indexPath];
@@ -539,9 +541,15 @@ static NSString * const kFooterId = @"footer";
 
 - (void)scrollViewDidScroll:(UIScrollView *)scrollView
 {
+    if ([self.refreshControl isKindOfClass:[TBRefreshControl class]]) [self.refreshControl trackScrollView:scrollView released:NO];
     if (!self.hasMore || self.loading) return;
     CGFloat bottom = scrollView.contentOffset.y + scrollView.bounds.size.height;
     if (bottom > scrollView.contentSize.height - scrollView.bounds.size.height) [self loadMore];
+}
+
+- (void)scrollViewDidEndDragging:(UIScrollView *)scrollView willDecelerate:(BOOL)decelerate
+{
+    if ([self.refreshControl isKindOfClass:[TBRefreshControl class]]) [self.refreshControl trackScrollView:scrollView released:YES];
 }
 
 #pragma mark - Long press
@@ -554,7 +562,7 @@ static NSString * const kFooterId = @"footer";
     if (!item) return;
     self.pressedItem = item;
     UIActionSheet *sheet = [[RetroActionSheet alloc] initWithTitle:nil delegate:self cancelButtonTitle:L(@"Cancel") destructiveButtonTitle:L(@"Remove") otherButtonTitles:nil];
-    UICollectionViewCell *cell = [self.collectionView cellForItemAtIndexPath:ip];
+    PSUICollectionViewCell *cell = [self.collectionView cellForItemAtIndexPath:ip];
     if (TBIsPad() && cell) [sheet showFromRect:cell.bounds inView:cell animated:YES];
     else [sheet showInView:self.view];
 }

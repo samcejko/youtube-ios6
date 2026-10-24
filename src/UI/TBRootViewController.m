@@ -91,6 +91,11 @@
 
 #pragma mark - Rotation
 
+- (BOOL)shouldAutorotateToInterfaceOrientation:(UIInterfaceOrientation)orientation
+{
+    return TBIsPad() || orientation != UIInterfaceOrientationPortraitUpsideDown;
+}
+
 - (BOOL)shouldAutorotate
 {
     return YES;

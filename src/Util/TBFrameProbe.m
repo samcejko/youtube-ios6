@@ -12,9 +12,10 @@
 @end
 @implementation TBFrameProbe
 + (void)capturePlayer:(AVPlayer *)player completion:(void (^)(NSDictionary *))completion {
-    if (!player.currentItem) { completion(@{@"frameAvailable":@NO});return; }
+    Class outputClass=NSClassFromString(@"AVPlayerItemVideoOutput");
+    if (!player.currentItem || !outputClass || ![player.currentItem respondsToSelector:@selector(addOutput:)]) { completion(@{@"frameAvailable":@NO});return; }
     TBFrameProbe *probe=[[self alloc] init];probe.player=player;probe.item=player.currentItem;probe.completion=completion;
-    probe.output=[[AVPlayerItemVideoOutput alloc] initWithPixelBufferAttributes:@{(__bridge NSString *)kCVPixelBufferPixelFormatTypeKey:@(kCVPixelFormatType_32BGRA)}];
+    probe.output=[[outputClass alloc] initWithPixelBufferAttributes:@{(__bridge NSString *)kCVPixelBufferPixelFormatTypeKey:@(kCVPixelFormatType_32BGRA)}];
     [probe.item addOutput:probe.output];
     probe.timer=[NSTimer scheduledTimerWithTimeInterval:.1 target:probe selector:@selector(tick:) userInfo:nil repeats:YES];
 }

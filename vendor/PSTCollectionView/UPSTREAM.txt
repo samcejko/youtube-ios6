@@ -1,0 +1,3 @@
+https://github.com/steipete/PSTCollectionView
+Commit: 583d2e5e120d55252bb8c31c49db605668c5cfe8
+MIT License; see LICENSE.

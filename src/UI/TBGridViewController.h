@@ -1,3 +1,4 @@
+#import "PSTCollectionView.h"
 #import <UIKit/UIKit.h>
 #import "TBInnertube.h"
 
@@ -18,7 +19,7 @@ typedef TBHTTPTask *(^TBGridLoader)(NSString *continuation, TBItemsCompletion co
 
 @property (nonatomic) TBGridStyle style;
 @property (nonatomic, copy) TBGridLoader loader;
-@property (nonatomic, readonly, strong) UICollectionView *collectionView;
+@property (nonatomic, readonly, strong) PSUICollectionView *collectionView;
 @property (nonatomic, readonly, strong) NSArray *items;         // every item, in order
 @property (nonatomic, copy) NSString *emptyText;               // shown when the first page is empty
 @property (nonatomic) BOOL refreshesOnAppear;                  // reload when the view appears after a while (default YES)

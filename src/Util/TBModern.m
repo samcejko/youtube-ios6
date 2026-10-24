@@ -131,7 +131,7 @@ static UIImage *TBBarImage(BOOL black, CGFloat above, CGFloat height)
     UIRectFill(CGRectMake(0, size.height - 1, size.width, 1));
     UIImage *image = UIGraphicsGetImageFromCurrentImageContext();
     UIGraphicsEndImageContext();
-    return [image resizableImageWithCapInsets:UIEdgeInsetsMake(1, 0, 1, 0) resizingMode:UIImageResizingModeStretch];
+    return [image stretchableImageWithLeftCapWidth:(NSInteger)(0) topCapHeight:(NSInteger)(1)];
 }
 
 // Bordered bar buttons: normal, pressed and the blue "Done" style, on the blue or the black bar
@@ -192,7 +192,7 @@ static UIImage *TBButtonImage(BOOL black, BOOL highlighted, BOOL done, BOOL back
     UIImage *image = UIGraphicsGetImageFromCurrentImageContext();
     UIGraphicsEndImageContext();
     UIEdgeInsets caps = back ? UIEdgeInsetsMake(7, 15, 7, 6) : UIEdgeInsetsMake(7, 6, 7, 6);
-    return [image resizableImageWithCapInsets:caps resizingMode:UIImageResizingModeStretch];
+    return [image stretchableImageWithLeftCapWidth:(NSInteger)caps.left topCapHeight:(NSInteger)caps.top];
 }
 
 // A fully transparent image (hides the iOS 7 back chevron: the pointed button background draws the arrow)
@@ -217,7 +217,7 @@ static UIImage *TBSearchFieldImage(void)
     [path stroke];
     UIImage *image = UIGraphicsGetImageFromCurrentImageContext();
     UIGraphicsEndImageContext();
-    return [image resizableImageWithCapInsets:UIEdgeInsetsMake(14, 14, 14, 14) resizingMode:UIImageResizingModeStretch];
+    return [image stretchableImageWithLeftCapWidth:(NSInteger)(14) topCapHeight:(NSInteger)(14)];
 }
 
 // The black iOS 6 tab bar, and the darker rounded area behind its selected item
@@ -231,7 +231,7 @@ static UIImage *TBTabBarImage(void)
     UIRectFillUsingBlendMode(CGRectMake(0, 0, size.width, 1), kCGBlendModeNormal);
     UIImage *image = UIGraphicsGetImageFromCurrentImageContext();
     UIGraphicsEndImageContext();
-    return [image resizableImageWithCapInsets:UIEdgeInsetsMake(1, 0, 1, 0) resizingMode:UIImageResizingModeStretch];
+    return [image stretchableImageWithLeftCapWidth:(NSInteger)(0) topCapHeight:(NSInteger)(1)];
 }
 
 static UIImage *TBTabSelectionImage(void)
@@ -243,7 +243,7 @@ static UIImage *TBTabSelectionImage(void)
     [path fill];
     UIImage *image = UIGraphicsGetImageFromCurrentImageContext();
     UIGraphicsEndImageContext();
-    return [image resizableImageWithCapInsets:UIEdgeInsetsMake(10, 10, 10, 10) resizingMode:UIImageResizingModeStretch];
+    return [image stretchableImageWithLeftCapWidth:(NSInteger)(10) topCapHeight:(NSInteger)(10)];
 }
 
 // Segments of a plain segmented control: light gray, the selected one darker
@@ -271,7 +271,7 @@ static UIImage *TBSegmentImage(BOOL selected)
     [path stroke];
     UIImage *image = UIGraphicsGetImageFromCurrentImageContext();
     UIGraphicsEndImageContext();
-    return [image resizableImageWithCapInsets:UIEdgeInsetsMake(7, 6, 7, 6) resizingMode:UIImageResizingModeStretch];
+    return [image stretchableImageWithLeftCapWidth:(NSInteger)(6) topCapHeight:(NSInteger)(7)];
 }
 
 static UIImage *TBSegmentDividerImage(void)

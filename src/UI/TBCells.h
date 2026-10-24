@@ -1,3 +1,4 @@
+#import "PSTCollectionView.h"
 #import <UIKit/UIKit.h>
 #import "TBModels.h"
 
@@ -8,7 +9,7 @@
 
 // A video or a playlist in a grid: a "card" (thumbnail on top, texts below) on wide screens, a row (thumbnail on
 // the left) on narrow ones. A red bar on the thumbnail shows how far a video was watched.
-@interface TBVideoCell : UICollectionViewCell
+@interface TBVideoCell : PSUICollectionViewCell
 + (NSString *)reuseIdentifier;
 + (CGFloat)cardHeightForWidth:(CGFloat)width;
 + (CGFloat)rowHeight;
@@ -18,7 +19,7 @@
 @end
 
 // A short: a tall thumbnail with the title and the views over its lower part
-@interface TBShortCell : UICollectionViewCell
+@interface TBShortCell : PSUICollectionViewCell
 + (NSString *)reuseIdentifier;
 + (CGFloat)heightForWidth:(CGFloat)width;
 - (void)configureWithVideo:(TBVideo *)video;
@@ -26,7 +27,7 @@
 @end
 
 // A channel in a grid (a full-width row): round avatar, name, handle and subscribers
-@interface TBChannelCell : UICollectionViewCell
+@interface TBChannelCell : PSUICollectionViewCell
 + (NSString *)reuseIdentifier;
 + (CGFloat)height;
 - (void)configureWithChannel:(TBChannel *)channel;
@@ -34,7 +35,7 @@
 @end
 
 // The title of a section of the grid, with an optional "More" on the right
-@interface TBGridHeaderView : UICollectionReusableView
+@interface TBGridHeaderView : PSUICollectionReusableView
 + (NSString *)reuseIdentifier;
 + (CGFloat)height;
 @property (nonatomic, strong, readonly) UILabel *titleLabel;

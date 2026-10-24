@@ -47,7 +47,7 @@ static UIImage *TBRoundedGradientImage(UIColor *top, UIColor *bottom, UIColor *s
     UIImage *image = UIGraphicsGetImageFromCurrentImageContext();
     UIGraphicsEndImageContext();
     CGFloat cap = radius + 5;
-    return [image resizableImageWithCapInsets:UIEdgeInsetsMake(cap, cap, cap, cap) resizingMode:UIImageResizingModeStretch];
+    return [image stretchableImageWithLeftCapWidth:(NSInteger)(cap) topCapHeight:(NSInteger)(cap)];
 }
 
 // A bar background: top highlight hairline, gradient body, bottom line.
@@ -63,7 +63,7 @@ static UIImage *TBBarImage(UIColor *top, UIColor *bottom, UIColor *line, CGFloat
     UIRectFill(CGRectMake(0, height - 1, size.width, 1));
     UIImage *image = UIGraphicsGetImageFromCurrentImageContext();
     UIGraphicsEndImageContext();
-    return [image resizableImageWithCapInsets:UIEdgeInsetsMake(2, 1, 2, 1) resizingMode:UIImageResizingModeStretch];
+    return [image stretchableImageWithLeftCapWidth:(NSInteger)(1) topCapHeight:(NSInteger)(2)];
 }
 
 // Draws with a block into an image of the given size (transparent background)
@@ -297,7 +297,7 @@ static UIImage *TBDrawImage(CGSize size, void (^draw)(CGContextRef ctx))
             UIColor *a = [UIColor colorWithWhite:0 alpha:top ? 0.75 : 0.0], *b = [UIColor colorWithWhite:0 alpha:top ? 0.0 : 0.75];
             TBDrawVerticalGradient(ctx, CGRectMake(0, 0, 4, 64), a, b);
         });
-        return [image resizableImageWithCapInsets:UIEdgeInsetsMake(0, 1, 0, 1) resizingMode:UIImageResizingModeStretch];
+        return [image stretchableImageWithLeftCapWidth:(NSInteger)(1) topCapHeight:(NSInteger)(0)];
     }];
 }
 

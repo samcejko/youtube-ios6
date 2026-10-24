@@ -1,6 +1,6 @@
 # Tubie
 
-**A YouTube client for jailbroken iOS 6.** The YouTube that shipped with iOS 6 stopped working years ago and the
+**A YouTube client for jailbroken iOS 5–10.** The YouTube that shipped with iOS 6 stopped working years ago and the
 website no longer loads in its Safari; Tubie brings the content back in the look of the system itself. A second
 build of the same sources runs on **64-bit devices with iOS 14–17** (iPhone X and newer: rootless jailbreaks and
 TrollStore), with the same iOS 6 look.
@@ -30,7 +30,9 @@ TrollStore), with the same iOS 6 look.
 - Light and dark theme in the iOS 6 style, English and Czech
 - Own TLS 1.2 stack (Mbed TLS) and HTTP client: YouTube's servers only accept ciphers iOS 6 never had
 
-Tested on an iPad 2 with iOS 6.1.3 and an iPhone X with iOS 16.7.16.
+Hardware tested on an iPad 2 with iOS 6.1.3 and an iPhone X with iOS 16.7.16. The ARMv7 build targets iOS 5.0–10.x; iOS 5 and iOS 7–10 have not yet been tested on physical hardware.
+
+iOS 5 uses the bundled PSTCollectionView grid and a pull-to-refresh fallback. Earlier table-cell reuse, image stretching and rotation APIs keep the same layout and classic iOS 6 artwork.
 
 ## How it works
 
@@ -77,7 +79,7 @@ On iOS 14–17 (64-bit): with a rootless jailbreak add the same repository in Si
 No Mac needed. Every push runs `.github/workflows/build.yml` on Ubuntu with Theos and Mbed TLS, twice from the
 same sources:
 
-- `ios6-armv7`: the iOS 9.3 SDK, deployment target 6.0 → `Tubie-<version>.ipa` and the `iphoneos-arm` `.deb`;
+- `ios5-armv7`: the iOS 9.3 SDK, deployment target 5.0 → `Tubie-<version>.ipa` and the `iphoneos-arm` `.deb`;
 - `ios14-arm64`: `make package THEOS_PACKAGE_SCHEME=rootless`, the iOS 16.5 SDK, deployment target 14.0 →
   `Tubie-<version>-arm64.ipa` (TrollStore) and the `iphoneos-arm64` `.deb` (rootless, `/var/jb`).
 

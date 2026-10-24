@@ -1,9 +1,9 @@
-// Shared macros and constants. Everything here must be iOS 6.0 safe.
+// Shared macros and constants. Everything here must be iOS 5.0 safe.
 #import <Foundation/Foundation.h>
 #import <UIKit/UIKit.h>
 #import "RetroUIKit.h"
 
-// Any API newer than the iOS 6.0 deployment target is a hard error in files that include this header.
+// Any API newer than the iOS 5.0 deployment target is a hard error in files that include this header.
 #pragma clang diagnostic error "-Wunguarded-availability"
 
 #define L(key) NSLocalizedString((key), nil)
