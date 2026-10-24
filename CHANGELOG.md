@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.5.1 (2026-10-24)
+
+- Studio adds country, device, operating-system, traffic-source, subscription, content-type and playback-location reports, loaded on demand through the existing sign-in.
+- Compare matching available days with the previous period; unavailable data and zero percentage baselines remain explicit.
+- Open per-video analytics from top videos. Add shares and average view percentage.
+- Switch the daily graph between views, watch minutes and net subscribers; tap a bar for exact daily figures.
+- Export detailed reports and comparisons to CSV locally. Preserve classic iOS 6 controls and Czech/English text.
+- No new Google Cloud setup, server backend, account permissions or video/comment changes.
+
 ## 0.5.0 (2026-10-24)
 
 - Playback recovery now tries the configured resolver even when YouTube returns a bot check or no playable formats. DASH video and audio are recognized as playable without requiring a progressive MP4.

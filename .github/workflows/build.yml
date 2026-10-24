@@ -25,6 +25,8 @@ jobs:
         run: |
           clang -fobjc-arc -g -fsanitize=address,undefined -framework Foundation -Isrc/YouTube -Isrc/Net tools/check_playback.m src/YouTube/TBResolver.m src/YouTube/TBPlaybackModels.m src/Net/TBRemux.m -o /tmp/check-playback
           /tmp/check-playback
+          clang -fobjc-arc -g -fsanitize=address,undefined -framework Foundation -Isrc/YouTube tools/check_studio.m src/YouTube/TBStudioReports.m -o /tmp/check-studio
+          /tmp/check-studio
   build:
     needs: playback-test
     # One source tree, two packages: armv7 for iOS 6 (Cydia, ipainstaller) and arm64 for iOS 14-17 (the .deb for

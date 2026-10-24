@@ -16,6 +16,7 @@
 #import "MusicHandoff.h"
 #import "TBAccount.h"
 #import "TBStudio.h"
+#import "TBStudioReports.h"
 #import "TBStudioViewController.h"
 #import "TBFrameProbe.h"
 #import <AVFoundation/AVFoundation.h>
@@ -225,10 +226,14 @@ static NSUInteger TBHandoffGeneration;
         return YES;
     }
     if ([target isEqualToString:@"studioprobe"]) {
-        [@"{\"running\":true}" writeToFile:[NSTemporaryDirectory() stringByAppendingPathComponent:@"studio-probe.json"] atomically:YES encoding:NSUTF8StringEncoding error:NULL];
-        [TBStudio dashboardForDays:28 completion:^(NSDictionary *result) {
-            [[NSJSONSerialization dataWithJSONObject:result options:0 error:NULL] writeToFile:[NSTemporaryDirectory() stringByAppendingPathComponent:@"studio-probe.json"] atomically:YES];
-        }];return YES;
+        NSString *file=[NSTemporaryDirectory() stringByAppendingPathComponent:@"studio-probe.json"];
+        [@"{\"running\":true}" writeToFile:file atomically:YES encoding:NSUTF8StringEncoding error:NULL];
+        void (^save)(NSDictionary *)=^(NSDictionary *result){[[NSJSONSerialization dataWithJSONObject:result options:0 error:NULL] writeToFile:file atomically:YES];};
+        NSInteger days=[params[@"days"] integerValue];if(days!=7 && days!=90)days=28;
+        NSString *dimension=params[@"dimension"],*video=params[@"video"];
+        if([dimension isEqualToString:@"all"]){NSMutableDictionary *all=[NSMutableDictionary dictionary];__block NSUInteger pending=[TBStudioReports dimensions].count;for(NSString *name in [TBStudioReports dimensions])[TBStudio reportForDimension:name days:days video:video completion:^(NSDictionary *result){all[name]=result;if(--pending==0)save(all);}];}
+        else if(dimension.length)[TBStudio reportForDimension:dimension days:days video:video completion:save];
+        else [TBStudio dashboardForDays:days video:video completion:save];return YES;
     }
     if ([target isEqualToString:@"frame"]) {
         UIViewController *top=[TBNavigator presenterFrom:nil];
