@@ -372,8 +372,10 @@ static NSUInteger TBHandoffGeneration;
         }
         if (largest) {
             CGFloat maxY = MAX(0, largest.contentSize.height + largest.contentInset.bottom - largest.bounds.size.height);
-            CGFloat y = [params[@"y"] isEqualToString:@"end"] ? maxY : MIN(maxY, MAX(-largest.contentInset.top, [params[@"y"] doubleValue]));
+            BOOL pull = [params[@"pull"] isEqualToString:@"1"];
+            CGFloat y = pull ? -largest.contentInset.top - 75 : ([params[@"y"] isEqualToString:@"end"] ? maxY : MIN(maxY, MAX(-largest.contentInset.top, [params[@"y"] doubleValue])));
             [largest setContentOffset:CGPointMake(largest.contentOffset.x, y) animated:NO];
+            if (pull && [largest.delegate respondsToSelector:@selector(scrollViewDidEndDragging:willDecelerate:)]) [largest.delegate scrollViewDidEndDragging:largest willDecelerate:NO];
         }
         TBLog(@"Scroll: %@", largest ? NSStringFromClass([largest class]) : @"no scroll view");
         return YES;

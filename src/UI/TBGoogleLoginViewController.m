@@ -51,7 +51,7 @@
     self.stepLabel.textColor = [t primaryTextColor];
     self.stepLabel.textAlignment = UITextAlignmentCenter;
     self.stepLabel.numberOfLines = 0;
-    self.stepLabel.text = L(@"Asking Google for a codeâ€¦");
+    self.stepLabel.text = L(@"Asking Google for a code…");
     [self.scrollView addSubview:self.stepLabel];
 
     self.qrContainer = [[UIView alloc] initWithFrame:CGRectZero];
@@ -193,7 +193,7 @@
     self.qrImageView.image = nil;
     self.codeLabel.text = @"";
     self.urlLabel.text = @"";
-    self.stepLabel.text = L(@"Asking Google for a codeâ€¦");
+    self.stepLabel.text = L(@"Asking Google for a code…");
     self.statusLabel.text = @"";
     [self.spinner startAnimating];
     [self.view setNeedsLayout];
@@ -215,7 +215,7 @@
             s.qrImageView.image = nil;
             s.stepLabel.text = L(@"On a computer or phone, open this address and enter the code:");
         }
-        s.statusLabel.text = L(@"Waiting for the confirmationâ€¦ The code is good for a few minutes.");
+        s.statusLabel.text = L(@"Waiting for the confirmation… The code is good for a few minutes.");
         [s.view setNeedsLayout];
     } completion:^(NSError *error) {
         TBGoogleLoginViewController *s = weakSelf;
@@ -230,7 +230,7 @@
         }
         s.qrContainer.hidden = YES;
         s.statusLabel.text = L(@"Signed in. Your subscriptions are being fetched.");
-        s.codeLabel.text = @"âœ“";
+        s.codeLabel.text = @"✓";
         [s.view setNeedsLayout];
         dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(1.2 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
             [weakSelf.navigationController popViewControllerAnimated:YES];

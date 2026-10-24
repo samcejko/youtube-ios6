@@ -102,7 +102,7 @@ typedef NS_ENUM(NSInteger, TBWatchSection) {
 @implementation TBWatchTitleCell
 + (CGFloat)heightForTitle:(NSString *)title width:(CGFloat)width
 {
-    CGSize s = [title sizeWithFont:[UIFont boldSystemFontOfSize:16] constrainedToSize:CGSizeMake(width - 24, 200) lineBreakMode:NSLineBreakByWordWrapping];
+    CGSize s = [title sizeWithFont:[UIFont boldSystemFontOfSize:16] constrainedToSize:CGSizeMake(width - 24, 200) lineBreakMode:UILineBreakModeWordWrapping];
     return 10 + ceil(s.height) + 4 + 16 + 10;
 }
 - (instancetype)initWithStyle:(UITableViewCellStyle)style reuseIdentifier:(NSString *)reuseIdentifier
@@ -126,7 +126,7 @@ typedef NS_ENUM(NSInteger, TBWatchSection) {
 {
     [super layoutSubviews];
     CGRect b = self.contentView.bounds;
-    CGSize s = [self.titleLabel2.text sizeWithFont:self.titleLabel2.font constrainedToSize:CGSizeMake(b.size.width - 24, 200) lineBreakMode:NSLineBreakByWordWrapping];
+    CGSize s = [self.titleLabel2.text sizeWithFont:self.titleLabel2.font constrainedToSize:CGSizeMake(b.size.width - 24, 200) lineBreakMode:UILineBreakModeWordWrapping];
     self.titleLabel2.frame = CGRectMake(12, 10, b.size.width - 24, ceil(s.height));
     self.metaLabel.frame = CGRectMake(12, CGRectGetMaxY(self.titleLabel2.frame) + 4, b.size.width - 24, 16);
 }
@@ -147,7 +147,7 @@ typedef NS_ENUM(NSInteger, TBWatchSection) {
         for (int i = 0; i < 4; i++) {
             UIButton *b = [UIButton buttonWithType:UIButtonTypeCustom];
             b.titleLabel.font = [UIFont boldSystemFontOfSize:12];
-            b.titleLabel.lineBreakMode = NSLineBreakByTruncatingTail;
+            b.titleLabel.lineBreakMode = UILineBreakModeTruncatingTail;
             b.tag = i;
             [self.contentView addSubview:b];
             [buttons addObject:b];
@@ -300,7 +300,7 @@ typedef NS_ENUM(NSInteger, TBWatchSection) {
     self.captionLabel.backgroundColor = [UIColor colorWithWhite:0 alpha:0.65];
     self.captionLabel.textColor = [UIColor whiteColor];
     self.captionLabel.font = [UIFont boldSystemFontOfSize:TBIsPad() ? 18 : 14];
-    self.captionLabel.textAlignment = NSTextAlignmentCenter;
+    self.captionLabel.textAlignment = UITextAlignmentCenter;
     self.captionLabel.numberOfLines = 3;
     self.captionLabel.layer.cornerRadius = 4;
     self.captionLabel.hidden = YES;
@@ -311,7 +311,7 @@ typedef NS_ENUM(NSInteger, TBWatchSection) {
     self.skipLabel.backgroundColor = [UIColor colorWithWhite:0 alpha:0.7];
     self.skipLabel.textColor = [UIColor whiteColor];
     self.skipLabel.font = [UIFont boldSystemFontOfSize:12];
-    self.skipLabel.textAlignment = NSTextAlignmentCenter;
+    self.skipLabel.textAlignment = UITextAlignmentCenter;
     self.skipLabel.layer.cornerRadius = 4;
     self.skipLabel.hidden = YES;
     self.skipLabel.userInteractionEnabled = NO;
@@ -431,7 +431,7 @@ typedef NS_ENUM(NSInteger, TBWatchSection) {
     CGRect pf = self.playerView.frame;
     UIEdgeInsets safe = self.playerView.safeInsets;
     CGFloat w = MIN(pf.size.width - 40, 640);
-    CGSize s = [self.captionLabel.text sizeWithFont:self.captionLabel.font constrainedToSize:CGSizeMake(w - 16, 120) lineBreakMode:NSLineBreakByWordWrapping];
+    CGSize s = [self.captionLabel.text sizeWithFont:self.captionLabel.font constrainedToSize:CGSizeMake(w - 16, 120) lineBreakMode:UILineBreakModeWordWrapping];
     CGFloat lift = (self.playerView.controlsVisible ? 54 : 14) + safe.bottom;
     self.captionLabel.frame = CGRectMake(floor((pf.size.width - s.width - 16) / 2), CGRectGetMaxY(pf) - lift - s.height - 8, ceil(s.width) + 16, ceil(s.height) + 8);
     self.skipLabel.frame = CGRectMake(pf.size.width - safe.right - 12 - 190, pf.origin.y + self.playerView.topInset + 50, 190, 24);

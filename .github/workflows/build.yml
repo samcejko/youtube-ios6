@@ -183,6 +183,21 @@ jobs:
             grep -c "_memcpy" "$LIBC"
           fi
 
+      - name: Audit all Objective-C files against the iOS 5 target
+        if: matrix.scheme == ''
+        run: |
+          export PATH="$THEOS/toolchain/linux/iphone/bin:$THEOS/bin:$PATH"
+          failed=0
+          for file in src/*.m src/*/*.m; do
+            clang -target armv7-apple-ios5.0 -isysroot "$THEOS/sdks/iPhoneOS9.3.sdk" \
+              -fobjc-arc -fblocks -fsyntax-only -ferror-limit=0 -Wunguarded-availability \
+              -Wno-deprecated-declarations -Wno-nullability-completeness \
+              -include src/Util/TBFoundationCompatibility.h \
+              -Isrc -Isrc/Net -Isrc/YouTube -Isrc/UI -Isrc/Util -Ivendor/PSTCollectionView \
+              -Ivendor -Ivendor/mbedtls/include -Ivendor/mbedtls/library "$file" || failed=1
+          done
+          exit "$failed"
+
       - name: Build (${{ matrix.name }})
         env:
           # the Google OAuth client secret of the sign-in (repository secret); the build works without it too

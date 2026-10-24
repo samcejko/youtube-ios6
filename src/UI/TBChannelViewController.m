@@ -126,7 +126,7 @@
     if (c.handle.length) [parts addObject:c.handle];
     if (c.subscribersText.length) [parts addObject:c.subscribersText];
     if (c.videoCountText.length) [parts addObject:c.videoCountText];
-    self.detailLabel.text = [parts componentsJoinedByString:@" Â· "];
+    self.detailLabel.text = [parts componentsJoinedByString:@" · "];
     [self.descriptionLabel setText:c.descriptionText ?: @"" knownLinks:nil];
     [self.avatar setImageURL:c.avatarURL placeholder:[[TBTheme shared] avatarPlaceholderWithSize:80]];
     [self.banner setImageURL:c.bannerURL placeholder:nil];
@@ -139,7 +139,7 @@
 {
     TBTheme *t = [TBTheme shared];
     BOOL subscribed = [[TBLibrary shared] isSubscribed:self.channel.channelId];
-    [self.subscribeButton setTitle:subscribed ? L(@"Subscribed âœ“") : L(@"Subscribe") forState:UIControlStateNormal];
+    [self.subscribeButton setTitle:subscribed ? L(@"Subscribed ✓") : L(@"Subscribe") forState:UIControlStateNormal];
     [self.subscribeButton setTitleColor:subscribed ? [t primaryTextColor] : [UIColor whiteColor] forState:UIControlStateNormal];
     [self.subscribeButton setTitleShadowColor:subscribed ? [UIColor clearColor] : [UIColor colorWithWhite:0 alpha:0.4] forState:UIControlStateNormal];
     [self.subscribeButton setBackgroundImage:subscribed ? [t buttonImageHighlighted:NO] : [t accentButtonImageHighlighted:NO disabled:NO] forState:UIControlStateNormal];
@@ -213,8 +213,8 @@
     for (TBChannelTab *tab in self.channel.tabs) {
         NSString *lower = [tab.title lowercaseString];
         if (!tab.params.length) continue;
-        if ([lower rangeOfString:@"home"].location != NSNotFound || [lower isEqualToString:@"domÅ¯"] || [lower rangeOfString:@"post"].location != NSNotFound
-            || [lower rangeOfString:@"pÅ™Ã­spÄ›v"].location != NSNotFound || [lower rangeOfString:@"store"].location != NSNotFound || [lower rangeOfString:@"obchod"].location != NSNotFound
+        if ([lower rangeOfString:@"home"].location != NSNotFound || [lower isEqualToString:@"domů"] || [lower rangeOfString:@"post"].location != NSNotFound
+            || [lower rangeOfString:@"příspěv"].location != NSNotFound || [lower rangeOfString:@"store"].location != NSNotFound || [lower rangeOfString:@"obchod"].location != NSNotFound
             || [lower rangeOfString:@"search"].location != NSNotFound || [lower rangeOfString:@"hledat"].location != NSNotFound || [lower rangeOfString:@"about"].location != NSNotFound) continue;
         [tabs addObject:tab];
         [titles addObject:tab.title];

@@ -176,7 +176,7 @@ static const CGFloat kRowThumbWidth = 136;
     NSMutableArray *parts = [NSMutableArray array];
     if (playlist.ownerName.length) [parts addObject:playlist.ownerName];
     [parts addObject:L(@"Playlist")];
-    self.metaLabel.text = [parts componentsJoinedByString:@" Â· "];
+    self.metaLabel.text = [parts componentsJoinedByString:@" · "];
     self.showsAvatar = NO;
     self.avatar.hidden = YES;
     [self.thumbnail setImageURL:playlist.thumbnailURL placeholder:[t thumbnailPlaceholder]];
@@ -384,7 +384,7 @@ static const CGFloat kRowThumbWidth = 136;
     if (channel.handle.length) [parts addObject:channel.handle];
     if (channel.subscribersText.length) [parts addObject:channel.subscribersText];
     if (channel.videoCountText.length) [parts addObject:channel.videoCountText];
-    self.detailLabel.text = [parts componentsJoinedByString:@" Â· "];
+    self.detailLabel.text = [parts componentsJoinedByString:@" · "];
 }
 
 - (void)layoutSubviews
@@ -531,7 +531,7 @@ static const CGFloat kRowThumbWidth = 136;
     [self.thumbnail setImageURL:playlist.thumbnailURL placeholder:[t thumbnailPlaceholder]];
     [self.lengthPill setText:playlist.videoCountText.length ? playlist.videoCountText : L(@"Playlist") image:[t darkPillImage]];
     self.titleLabel.text = playlist.title.length ? playlist.title : L(@"Playlist");
-    self.metaLabel.text = playlist.ownerName.length ? [NSString stringWithFormat:@"%@ Â· %@", playlist.ownerName, L(@"Playlist")] : L(@"Playlist");
+    self.metaLabel.text = playlist.ownerName.length ? [NSString stringWithFormat:@"%@ · %@", playlist.ownerName, L(@"Playlist")] : L(@"Playlist");
     self.progress = 0;
     self.progressTrack.hidden = YES;
     [self setNeedsLayout];
@@ -629,8 +629,8 @@ static const CGFloat kRowThumbWidth = 136;
     BOOL creator = [[comment valueForKey:@"isCreator"] boolValue];
     BOOL pinned = [[comment valueForKey:@"isPinned"] boolValue];
     NSMutableString *head = [NSMutableString stringWithString:author];
-    if (published.length) [head appendFormat:@" Â· %@", published];
-    if (pinned) [head appendFormat:@" Â· %@", L(@"Pinned")];
+    if (published.length) [head appendFormat:@" · %@", published];
+    if (pinned) [head appendFormat:@" · %@", L(@"Pinned")];
     self.authorLabel.text = head;
     self.authorLabel.textColor = creator ? [t accentColor] : [t secondaryTextColor];
     [self.bodyLabel setText:[comment valueForKey:@"text"] ?: @"" knownLinks:[comment valueForKey:@"textLinks"]];

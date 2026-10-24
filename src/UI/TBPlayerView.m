@@ -320,7 +320,7 @@ static const CGFloat TBBarHeight = 44;
 - (void)setQualityTitle:(NSString *)qualityTitle
 {
     _qualityTitle = [qualityTitle copy];
-    [self.qualityButton setTitle:qualityTitle.length ? [qualityTitle stringByAppendingString:@" â–¾"] : @"" forState:UIControlStateNormal];
+    [self.qualityButton setTitle:qualityTitle.length ? [qualityTitle stringByAppendingString:@" ▾"] : @"" forState:UIControlStateNormal];
     self.qualityButton.hidden = qualityTitle.length == 0;
     [self setNeedsLayout];
 }
@@ -541,7 +541,7 @@ static const CGFloat TBBarHeight = 44;
             if (![self.delegate respondsToSelector:@selector(playerView:holdsFastForward:)]) return;
             if (![self.delegate playerView:self holdsFastForward:YES]) return;
             self.holdActive = YES;
-            [self showHUD:@"2Ã— Â»"];
+            [self showHUD:@"2× »"];
             break;
         case UIGestureRecognizerStateEnded:
         case UIGestureRecognizerStateCancelled:
@@ -600,7 +600,7 @@ static const CGFloat TBBarHeight = 44;
             CGFloat value = MAX(0, MIN(1, self.panStartValue + (-t.y / range)));   // drag up raises
             if (self.panIsVolume) [self setSystemVolume:value];
             else [UIScreen mainScreen].brightness = value;
-            [self showHUD:[NSString stringWithFormat:@"%@ %d%%", self.panIsVolume ? @"\U0001F50A" : @"â˜€", (int)round(value * 100)]];
+            [self showHUD:[NSString stringWithFormat:@"%@ %d%%", self.panIsVolume ? @"\U0001F50A" : @"☀", (int)round(value * 100)]];
             break;
         }
         case UIGestureRecognizerStateEnded:
