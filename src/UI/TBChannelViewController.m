@@ -73,12 +73,12 @@
     self.nameLabel = [[UILabel alloc] initWithFrame:CGRectZero];
     self.nameLabel.backgroundColor = [UIColor clearColor];
     self.nameLabel.font = [UIFont boldSystemFontOfSize:20];
-    self.nameLabel.lineBreakMode = UILineBreakModeTruncatingTail;
+    self.nameLabel.lineBreakMode = UILineBreakModeTailTruncation;
     [self.header addSubview:self.nameLabel];
     self.detailLabel = [[UILabel alloc] initWithFrame:CGRectZero];
     self.detailLabel.backgroundColor = [UIColor clearColor];
     self.detailLabel.font = [UIFont systemFontOfSize:13];
-    self.detailLabel.lineBreakMode = UILineBreakModeTruncatingTail;
+    self.detailLabel.lineBreakMode = UILineBreakModeTailTruncation;
     [self.header addSubview:self.detailLabel];
     self.descriptionLabel = [[TBLinkLabel alloc] initWithFrame:CGRectZero];
     self.descriptionLabel.font = [UIFont systemFontOfSize:13];

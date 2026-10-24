@@ -147,7 +147,7 @@ typedef NS_ENUM(NSInteger, TBWatchSection) {
         for (int i = 0; i < 4; i++) {
             UIButton *b = [UIButton buttonWithType:UIButtonTypeCustom];
             b.titleLabel.font = [UIFont boldSystemFontOfSize:12];
-            b.titleLabel.lineBreakMode = UILineBreakModeTruncatingTail;
+            b.titleLabel.lineBreakMode = UILineBreakModeTailTruncation;
             b.tag = i;
             [self.contentView addSubview:b];
             [buttons addObject:b];
