@@ -1,6 +1,8 @@
 #import "TBAppDelegate.h"
 #import "TBRootViewController.h"
 #import "TBWatchViewController.h"
+#import "TBShortsViewController.h"
+#import "TBPlayback.h"
 #import "TBNavigator.h"
 #import "TBTLSSocket.h"
 #import "TBMediaProxy.h"
@@ -199,6 +201,7 @@ static NSUInteger TBHandoffGeneration;
         return [TBNavigator openURL:[NSURL URLWithString:params[@"url"]] from:self.rootViewController];
     }
     if ([target isEqualToString:@"studio"]) {
+        if(self.rootViewController.presentedViewController)[self.rootViewController dismissViewControllerAnimated:NO completion:nil];
         [self.rootViewController selectTab:4];
         UIViewController *selected=self.rootViewController.selectedViewController;
         if([selected isKindOfClass:[UINavigationController class]]) { UINavigationController *nav=(UINavigationController *)selected;[nav popToRootViewControllerAnimated:NO];[nav pushViewController:[[TBStudioViewController alloc] init] animated:NO]; }
@@ -229,7 +232,7 @@ static NSUInteger TBHandoffGeneration;
     }
     if ([target isEqualToString:@"frame"]) {
         UIViewController *top=[TBNavigator presenterFrom:nil];
-        if ([top isKindOfClass:[TBWatchViewController class]]) [TBFrameProbe capturePlayer:[top valueForKey:@"player"] completion:^(NSDictionary *result) {
+        if ([top isKindOfClass:[TBWatchViewController class]] || [top isKindOfClass:[TBShortsViewController class]]) [TBFrameProbe capturePlayer:[top valueForKey:@"player"] completion:^(NSDictionary *result) {
             [[NSJSONSerialization dataWithJSONObject:result options:0 error:NULL] writeToFile:[NSTemporaryDirectory() stringByAppendingPathComponent:@"frame-probe.json"] atomically:YES];
         }];return YES;
     }
@@ -239,13 +242,15 @@ static NSUInteger TBHandoffGeneration;
         NSMutableArray *views=[NSMutableArray arrayWithArray:top.view.subviews],*labels=[NSMutableArray array];
         for (NSUInteger i=0;i<views.count;i++) { UIView *v=views[i];[views addObjectsFromArray:v.subviews];if(!v.hidden && [v isKindOfClass:[UILabel class]] && ((UILabel *)v).text.length)[labels addObject:((UILabel *)v).text]; }
         result[@"labels"]=labels;
-        if ([top isKindOfClass:[TBWatchViewController class]]) {
+        result[@"landscape"]=@(UIInterfaceOrientationIsLandscape([UIApplication sharedApplication].statusBarOrientation));
+        if ([top isKindOfClass:[TBWatchViewController class]] || [top isKindOfClass:[TBShortsViewController class]]) {
+            BOOL watch=[top isKindOfClass:[TBWatchViewController class]];
             AVPlayer *player=[top valueForKey:@"player"];AVPlayerItem *item=player.currentItem;
             double position=CMTimeGetSeconds(player.currentTime);
             result[@"rate"]=@(player.rate);result[@"position"]=@(isfinite(position)?position:0);result[@"itemStatus"]=@(item.status);
-            result[@"playerDescription"]=[(TBWatchViewController *)top playbackDebugDescription] ?: @"";
-            UIView *playerView=[top valueForKey:@"playerView"];
-            AVPlayerLayer *layer=[playerView valueForKey:@"playerLayer"];
+            if(watch){result[@"playerDescription"]=[(TBWatchViewController *)top playbackDebugDescription] ?: @"";TBPlaybackSource *source=[top valueForKey:@"source"];result[@"remuxed"]=@(source.isRemuxed);}
+            UIView *playerView=[top valueForKey:watch?@"playerView":@"videoView"];
+            AVPlayerLayer *layer=watch?[playerView valueForKey:@"playerLayer"]:(AVPlayerLayer *)playerView.layer;
             result[@"layerAttached"]=@(player && layer.player==player);result[@"readyForDisplay"]=@(layer.readyForDisplay);
         }
         [[NSJSONSerialization dataWithJSONObject:result options:0 error:NULL] writeToFile:[NSTemporaryDirectory() stringByAppendingPathComponent:@"tubie-diagnostics.json"] atomically:YES];return YES;
