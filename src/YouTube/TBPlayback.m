@@ -266,6 +266,9 @@ static NSDictionary *TBParseAttributes(NSString *list)
 
     // step 1: the iOS client (videos get their HLS here; most of them only the adaptive MP4 files, which the proxy
     // can remux into the same kind of stream)
+    // Opt-in device regression check: recover a real stream with no native player metadata.
+    NSFileManager *files=[NSFileManager defaultManager];NSString *documents=[TBUtils documentsPath];
+    if([files fileExistsAtPath:[documents stringByAppendingPathComponent:@"debug"]] && [files fileExistsAtPath:[documents stringByAppendingPathComponent:@"force-resolver"]]){resolverThenRemux(nil);return outer;}
     inner = [TBInnertube player:videoId client:TBClientIOS completion:^(TBPlayerInfo *info, NSError *error) {
         if (outer.isCancelled) return;
         if (error) { resolverThenRemux(nil); return; }
