@@ -213,7 +213,7 @@ static void *TBShortStatusContext = &TBShortStatusContext;
     self.counterLabel.frame = CGRectMake(x + w - 110, safe.top + 22, 100, 20);
     self.viewsLabel.frame = CGRectMake(x + 12, bottom - 28, w - 24, 16);
     self.channelButton.frame = CGRectMake(x + 12, bottom - 50, w - 24, 20);
-    CGSize ts = [self.titleLabel.text sizeWithFont:self.titleLabel.font constrainedToSize:CGSizeMake(w - 24, 60) lineBreakMode:UILineBreakModeWordWrapping];
+    CGSize ts = [self.titleLabel.text sizeWithFont:self.titleLabel.font constrainedToSize:CGSizeMake(w - 24, 60) lineBreakMode:UILineBreakModeWordWrap];
     self.titleLabel.frame = CGRectMake(x + 12, bottom - 56 - ts.height, w - 24, ts.height);
     self.progressTrack.frame = CGRectMake(x, bottom - 3, w, 3);
     self.spinner.center = CGPointMake(b.size.width / 2, b.size.height / 2);
@@ -342,7 +342,11 @@ static void *TBShortStatusContext = &TBShortStatusContext;
     [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(itemFailed:) name:AVPlayerItemFailedToPlayToEndTimeNotification object:item];
     if (!self.player) {
         self.player = [AVPlayer playerWithPlayerItem:item];
-        self.player.allowsExternalPlayback = NO;
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wunguarded-availability"
+        if ([self.player respondsToSelector:@selector(setAllowsExternalPlayback:)]) self.player.allowsExternalPlayback = NO;
+        else self.player.allowsAirPlayVideo = NO;
+#pragma clang diagnostic pop
         ((AVPlayerLayer *)self.videoView.layer).player = self.player;
     } else {
         [self.player replaceCurrentItemWithPlayerItem:item];

@@ -35,7 +35,7 @@ static NSDictionary *TBFindFirst(id node, NSString *key)
         [queue removeObjectAtIndex:0];
         visited++;
         if ([current isKindOfClass:[NSDictionary class]]) {
-            id direct = current[key];
+            id direct = [current objectForKey:key];
             if ([direct isKindOfClass:[NSDictionary class]]) return direct;
             for (id value in [current allValues]) {
                 if ([value isKindOfClass:[NSDictionary class]] || [value isKindOfClass:[NSArray class]]) [queue addObject:value];
@@ -55,7 +55,7 @@ static void TBFindAll(id node, NSString *key, NSMutableArray *into, NSInteger de
     if (depth > 80) return;
     if ([node isKindOfClass:[NSDictionary class]]) {
         for (NSString *k in node) {
-            id value = node[k];
+            id value = [node objectForKey:k];
             if ([k isEqualToString:key] && [value isKindOfClass:[NSDictionary class]]) [into addObject:value];
             TBFindAll(value, key, into, depth + 1);
         }
@@ -152,7 +152,7 @@ static TBVideo *TBVideoFromRenderer(NSDictionary *r)
             }
         }
     }
-    NSDictionary *watch = TBDict(r[@"navigationEndpoint"][@"watchEndpoint"]) ?: TBDict(r[@"defaultNavigationEndpoint"][@"watchEndpoint"]);
+    NSDictionary *watch = TBDict([TBDict(r[@"navigationEndpoint"]) objectForKey:@"watchEndpoint"]) ?: TBDict([TBDict(r[@"defaultNavigationEndpoint"]) objectForKey:@"watchEndpoint"]);
     if (watch[@"startTimeSeconds"]) {
         NSTimeInterval startSec = TBDbl(watch[@"startTimeSeconds"]);
         if (startSec > 0) v.position = startSec;
@@ -208,7 +208,7 @@ static TBVideo *TBVideoFromLockup(NSDictionary *lockup)
     NSMutableArray *resumes = [NSMutableArray array];
     TBFindAll(lockup, @"thumbnailOverlayResumePlaybackRenderer", resumes, 0);
     if (resumes.count) {
-        double percent = TBDbl(resumes[0][@"percentDurationWatched"]);
+        double percent = TBDbl([TBDict(resumes[0]) objectForKey:@"percentDurationWatched"]);
         if (percent > 0 && v.lengthSeconds > 0) {
             v.position = (percent / 100.0) * v.lengthSeconds;
         }
@@ -390,7 +390,7 @@ static TBVideo *TBVideoFromTile(NSDictionary *tile)
     NSMutableArray *resumes = [NSMutableArray array];
     TBFindAll(tile, @"thumbnailOverlayResumePlaybackRenderer", resumes, 0);
     if (resumes.count) {
-        double percent = TBDbl(resumes[0][@"percentDurationWatched"]);
+        double percent = TBDbl([TBDict(resumes[0]) objectForKey:@"percentDurationWatched"]);
         if (percent > 0 && v.lengthSeconds > 0) {
             v.position = (percent / 100.0) * v.lengthSeconds;
         }
@@ -881,7 +881,7 @@ static void TBWalk(id node, NSMutableArray *items, NSMutableArray *continuations
         NSMutableSet *seen = [NSMutableSet set];
         for (NSDictionary *r in renderers) {
             NSString *title = TBText(r[@"title"]) ?: TBText(r[@"headerRenderer"]);
-            if (!title.length) title = TBText(TBDict(r[@"header"])[@"shelfHeaderRenderer"][@"title"]);
+            if (!title.length) title = TBText([TBDict(TBDict(r[@"header"])[@"shelfHeaderRenderer"]) objectForKey:@"title"]);
             NSArray *items = [self itemsInNode:r[@"content"] ?: (r[@"contents"] ?: r[@"items"]) continuation:NULL];
             NSMutableArray *fresh = [NSMutableArray array];
             for (id item in items) {

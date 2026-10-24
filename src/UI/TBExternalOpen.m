@@ -154,6 +154,10 @@ static NSInteger TBMajorIOSVersion(void)
     if (!TBModernIOS() || !controller) return NO;
     if (TBIsPad() && TBMajorIOSVersion() < 8) return NO;
     UIViewController *presenter = [TBNavigator presenterFrom:controller];
+    Class activityClass = NSClassFromString(@"UIActivityViewController");
+    if (!activityClass) return NO;
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wunguarded-availability"
     UIActivityViewController *activity = [[UIActivityViewController alloc] initWithActivityItems:@[ url ] applicationActivities:nil];
 #if __IPHONE_OS_VERSION_MAX_ALLOWED >= 80000
 #pragma clang diagnostic push
@@ -174,6 +178,7 @@ static NSInteger TBMajorIOSVersion(void)
 #pragma clang diagnostic pop
 #endif
     [presenter presentViewController:activity animated:YES completion:nil];
+#pragma clang diagnostic pop
     return YES;
 }
 

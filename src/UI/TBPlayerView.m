@@ -640,7 +640,8 @@ static const CGFloat TBBarHeight = 44;
 {
     UISlider *slider = [self findVolumeSlider];
     if (slider) return slider.value;
-    return [AVAudioSession sharedInstance].outputVolume;
+    // The audio-session volume getter was introduced in iOS 6.
+    return [MPMusicPlayerController iPodMusicPlayer].volume;
 }
 
 - (void)setSystemVolume:(CGFloat)volume

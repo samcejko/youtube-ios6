@@ -102,7 +102,7 @@ typedef NS_ENUM(NSInteger, TBWatchSection) {
 @implementation TBWatchTitleCell
 + (CGFloat)heightForTitle:(NSString *)title width:(CGFloat)width
 {
-    CGSize s = [title sizeWithFont:[UIFont boldSystemFontOfSize:16] constrainedToSize:CGSizeMake(width - 24, 200) lineBreakMode:UILineBreakModeWordWrapping];
+    CGSize s = [title sizeWithFont:[UIFont boldSystemFontOfSize:16] constrainedToSize:CGSizeMake(width - 24, 200) lineBreakMode:UILineBreakModeWordWrap];
     return 10 + ceil(s.height) + 4 + 16 + 10;
 }
 - (instancetype)initWithStyle:(UITableViewCellStyle)style reuseIdentifier:(NSString *)reuseIdentifier
@@ -126,7 +126,7 @@ typedef NS_ENUM(NSInteger, TBWatchSection) {
 {
     [super layoutSubviews];
     CGRect b = self.contentView.bounds;
-    CGSize s = [self.titleLabel2.text sizeWithFont:self.titleLabel2.font constrainedToSize:CGSizeMake(b.size.width - 24, 200) lineBreakMode:UILineBreakModeWordWrapping];
+    CGSize s = [self.titleLabel2.text sizeWithFont:self.titleLabel2.font constrainedToSize:CGSizeMake(b.size.width - 24, 200) lineBreakMode:UILineBreakModeWordWrap];
     self.titleLabel2.frame = CGRectMake(12, 10, b.size.width - 24, ceil(s.height));
     self.metaLabel.frame = CGRectMake(12, CGRectGetMaxY(self.titleLabel2.frame) + 4, b.size.width - 24, 16);
 }
@@ -431,7 +431,7 @@ typedef NS_ENUM(NSInteger, TBWatchSection) {
     CGRect pf = self.playerView.frame;
     UIEdgeInsets safe = self.playerView.safeInsets;
     CGFloat w = MIN(pf.size.width - 40, 640);
-    CGSize s = [self.captionLabel.text sizeWithFont:self.captionLabel.font constrainedToSize:CGSizeMake(w - 16, 120) lineBreakMode:UILineBreakModeWordWrapping];
+    CGSize s = [self.captionLabel.text sizeWithFont:self.captionLabel.font constrainedToSize:CGSizeMake(w - 16, 120) lineBreakMode:UILineBreakModeWordWrap];
     CGFloat lift = (self.playerView.controlsVisible ? 54 : 14) + safe.bottom;
     self.captionLabel.frame = CGRectMake(floor((pf.size.width - s.width - 16) / 2), CGRectGetMaxY(pf) - lift - s.height - 8, ceil(s.width) + 16, ceil(s.height) + 8);
     self.skipLabel.frame = CGRectMake(pf.size.width - safe.right - 12 - 190, pf.origin.y + self.playerView.topInset + 50, 190, 24);
@@ -659,7 +659,10 @@ typedef NS_ENUM(NSInteger, TBWatchSection) {
     NSNotificationCenter *nc = [NSNotificationCenter defaultCenter];
     [nc addObserver:self selector:@selector(itemDidPlayToEnd:) name:AVPlayerItemDidPlayToEndTimeNotification object:item];
     [nc addObserver:self selector:@selector(itemFailed:) name:AVPlayerItemFailedToPlayToEndTimeNotification object:item];
-    [nc addObserver:self selector:@selector(itemStalled:) name:AVPlayerItemPlaybackStalledNotification object:item];
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wunguarded-availability"
+    if (&AVPlayerItemPlaybackStalledNotification != NULL) [nc addObserver:self selector:@selector(itemStalled:) name:AVPlayerItemPlaybackStalledNotification object:item];
+#pragma clang diagnostic pop
 }
 
 - (void)loadItemWithURL:(NSURL *)url
@@ -676,7 +679,11 @@ typedef NS_ENUM(NSInteger, TBWatchSection) {
     [self observeItem:item];
     if (!self.player) {
         self.player = [AVPlayer playerWithPlayerItem:item];
-        self.player.allowsExternalPlayback = NO;   // (the proxy lives on this device only)
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wunguarded-availability"
+        if ([self.player respondsToSelector:@selector(setAllowsExternalPlayback:)]) self.player.allowsExternalPlayback = NO;
+        else self.player.allowsAirPlayVideo = NO;
+#pragma clang diagnostic pop   // (the proxy lives on this device only)
         self.playerView.player = self.player;
     } else {
         [self.player replaceCurrentItemWithPlayerItem:item];
@@ -834,7 +841,10 @@ typedef NS_ENUM(NSInteger, TBWatchSection) {
     NSNotificationCenter *nc = [NSNotificationCenter defaultCenter];
     [nc removeObserver:self name:AVPlayerItemDidPlayToEndTimeNotification object:self.item];
     [nc removeObserver:self name:AVPlayerItemFailedToPlayToEndTimeNotification object:self.item];
-    [nc removeObserver:self name:AVPlayerItemPlaybackStalledNotification object:self.item];
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wunguarded-availability"
+    if (&AVPlayerItemPlaybackStalledNotification != NULL) [nc removeObserver:self name:AVPlayerItemPlaybackStalledNotification object:self.item];
+#pragma clang diagnostic pop
     self.item = nil;
 }
 
@@ -1032,7 +1042,7 @@ typedef NS_ENUM(NSInteger, TBWatchSection) {
     NSInteger status = self.item.status;
     return [NSString stringWithFormat:@"rate %.2f (chosen %.2f%@%@, ff %d sf %d) at %.1f/%.1f s, item %@%@, tracks [%@], buffered [%@], size %.0fx%.0f, empty %d keepUp %d, variant %@",
             self.player.rate, self.playbackRate, self.holdingFast ? @", held 2x" : @"", self.speedMP4 ? @", MP4 for the speed" : @"",
-            ([self.item respondsToSelector:@selector(canPlayFastForward)] ? self.item.canPlayFastForward : NO), ([self.item respondsToSelector:@selector(canPlaySlowForward)] ? self.item.canPlaySlowForward : NO), CMTimeGetSeconds(self.player.currentTime), CMTimeGetSeconds(self.item.duration),
+            ([self.item respondsToSelector:@selector(canPlayFastForward)] ? self.item.canPlayFastForward : NO), ([self.item respondsToSelector:@selector(canPlaySlowForward)] ? [[self.item valueForKey:@"canPlaySlowForward"] boolValue] : NO), CMTimeGetSeconds(self.player.currentTime), CMTimeGetSeconds(self.item.duration),
             status >= 0 && status <= 2 ? statusNames[status] : @"?", self.item.error ? [NSString stringWithFormat:@" (%@)", self.item.error.localizedDescription] : @"",
             [tracks componentsJoinedByString:@", "], [ranges componentsJoinedByString:@", "],
             self.item.presentationSize.width, self.item.presentationSize.height,

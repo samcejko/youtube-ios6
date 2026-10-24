@@ -141,7 +141,7 @@ static double ChartValue(NSDictionary *row,NSInteger metric){if(metric==1)return
         TBStudioChart *chart=[[TBStudioChart alloc] initWithFrame:cell.contentView.bounds];chart.autoresizingMask=UIViewAutoresizingFlexibleWidth|UIViewAutoresizingFlexibleHeight;chart.rows=self.dashboard[@"daily"];chart.metric=self.chartMetric;__weak TBStudioViewController *owner=self;chart.selected=^(NSDictionary *row){[TBUtils alertWithTitle:TBStr(row[@"day"]) message:[NSString stringWithFormat:L(@"%@ views\n%@ minutes watched\nSubscribers: +%@ / −%@"),[owner number:row[@"views"]],[owner number:row[@"estimatedMinutesWatched"]],[owner number:row[@"subscribersGained"]],[owner number:row[@"subscribersLost"]]]];};[cell.contentView addSubview:chart];
     } else if(path.section==3 && self.videoId.length){cell.textLabel.text=L(@"Compare periods");cell.accessoryType=UITableViewCellAccessoryDisclosureIndicator;cell.selectionStyle=UITableViewCellSelectionStyleBlue;
     } else if(path.section==3 && [TBArr(self.dashboard[@"topVideos"]) count]) {
-        NSDictionary *video=self.dashboard[@"topVideos"][path.row];NSString *videoId=TBStr(video[@"video"]);
+        NSDictionary *video=[TBArr(self.dashboard[@"topVideos"]) objectAtIndex:path.row];NSString *videoId=TBStr(video[@"video"]);
         cell.textLabel.text=TBStr(TBDict(self.dashboard[@"videoTitles"])[videoId]) ?: videoId ?: L(@"Video");
         cell.detailTextLabel.text=[NSString stringWithFormat:L(@"%@ views"),[self number:video[@"views"]]];cell.accessoryType=UITableViewCellAccessoryDisclosureIndicator;cell.selectionStyle=UITableViewCellSelectionStyleBlue;
     } else if(path.section==4){cell.textLabel.text=path.row==0?L(@"Compare periods"):[self reportTitles][path.row-1];cell.accessoryType=UITableViewCellAccessoryDisclosureIndicator;cell.selectionStyle=UITableViewCellSelectionStyleBlue;
@@ -159,8 +159,8 @@ static double ChartValue(NSDictionary *row,NSInteger metric){if(metric==1)return
     if(![[TBAccount shared] isSignedIn]){[self.navigationController pushViewController:[[TBGoogleLoginViewController alloc] init] animated:YES];return;}
     if(path.section==5){[self.navigationController pushViewController:[[TBSettingsViewController alloc] init] animated:YES];return;}
     if(path.section==0 && self.videoId.length){[TBNavigator openVideoId:self.videoId from:self];return;}
-    if(path.section==0 && path.row==0 && self.dashboard[@"channel"]){NSString *channel=TBStr(self.dashboard[@"channel"][@"id"]);if(channel.length)[TBNavigator openChannelId:channel from:self];}
-    if(path.section==3){if(self.videoId.length){[self openComparison];return;}if(path.row<[TBArr(self.dashboard[@"topVideos"]) count]){NSString *video=TBStr(self.dashboard[@"topVideos"][path.row][@"video"]);if(video.length)[self.navigationController pushViewController:[[TBStudioViewController alloc] initWithVideo:video title:TBStr(TBDict(self.dashboard[@"videoTitles"])[video]) days:self.days] animated:YES];}}
+    if(path.section==0 && path.row==0 && self.dashboard[@"channel"]){NSString *channel=TBStr([TBDict(self.dashboard[@"channel"]) objectForKey:@"id"]);if(channel.length)[TBNavigator openChannelId:channel from:self];}
+    if(path.section==3){if(self.videoId.length){[self openComparison];return;}if(path.row<[TBArr(self.dashboard[@"topVideos"]) count]){NSString *video=TBStr([TBDict([TBArr(self.dashboard[@"topVideos"]) objectAtIndex:path.row]) objectForKey:@"video"]);if(video.length)[self.navigationController pushViewController:[[TBStudioViewController alloc] initWithVideo:video title:TBStr(TBDict(self.dashboard[@"videoTitles"])[video]) days:self.days] animated:YES];}}
     if(path.section==4){if(path.row==0){[self openComparison];return;}[self.navigationController pushViewController:[[TBStudioReportViewController alloc] initWithDimension:[TBStudioReports dimensions][path.row-1] title:[self reportTitles][path.row-1] days:self.days video:self.videoId] animated:YES];}
 }
 @end

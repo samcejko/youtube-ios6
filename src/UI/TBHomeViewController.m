@@ -120,7 +120,7 @@ static const NSUInteger TBHomeShelfLimit = 8;
         for (NSUInteger i = 0; i < pages.count; i++) {
             if (results[i] == [NSNull null]) continue;
             NSArray *pageShelves = results[i];
-            NSString *pageTitle = pages[i][0];
+            NSString *pageTitle = [TBArr(pages[i]) objectAtIndex:0];
             NSMutableArray *all = [NSMutableArray array];
             for (TBShelf *shelf in pageShelves) [all addObjectsFromArray:shelf.items];
             if (!all.count) continue;
@@ -145,7 +145,7 @@ static const NSUInteger TBHomeShelfLimit = 8;
         if (recTask) [self.tasks addObject:recTask];
     }
     for (NSUInteger i = 0; i < pages.count; i++) {
-        NSString *browseId = pages[i][1];
+        NSString *browseId = [TBArr(pages[i]) objectAtIndex:1];
         TBHTTPTask *t = [TBInnertube shelvesOfPage:browseId completion:^(NSArray *pageShelves, NSError *error) {
             if (pageShelves) results[i] = pageShelves;
             if (error) TBLog(@"Home: %@ failed: %@", browseId, error.localizedDescription);

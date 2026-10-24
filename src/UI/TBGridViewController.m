@@ -458,8 +458,8 @@ static NSString * const kFooterId = @"footer";
 {
     if (indexPath.section >= (NSInteger)self.sections.count) return nil;
     TBShelf *shelf = self.sections[(NSUInteger)indexPath.section];
-    if (indexPath.item >= (NSInteger)shelf.items.count) return nil;
-    return shelf.items[(NSUInteger)indexPath.item];
+    if (indexPath.row >= (NSInteger)shelf.items.count) return nil;
+    return shelf.items[(NSUInteger)indexPath.row];
 }
 
 - (NSInteger)numberOfSectionsInCollectionView:(PSUICollectionView *)collectionView
