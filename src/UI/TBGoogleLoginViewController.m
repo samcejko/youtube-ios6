@@ -49,9 +49,9 @@
     self.stepLabel.backgroundColor = [UIColor clearColor];
     self.stepLabel.font = [UIFont systemFontOfSize:TBIsPad() ? 17 : 14];
     self.stepLabel.textColor = [t primaryTextColor];
-    self.stepLabel.textAlignment = NSTextAlignmentCenter;
+    self.stepLabel.textAlignment = UITextAlignmentCenter;
     self.stepLabel.numberOfLines = 0;
-    self.stepLabel.text = L(@"Asking Google for a code…");
+    self.stepLabel.text = L(@"Asking Google for a codeâ€¦");
     [self.scrollView addSubview:self.stepLabel];
 
     self.qrContainer = [[UIView alloc] initWithFrame:CGRectZero];
@@ -72,7 +72,7 @@
     self.urlLabel.backgroundColor = [UIColor clearColor];
     self.urlLabel.font = [UIFont boldSystemFontOfSize:TBIsPad() ? 22 : 17];
     self.urlLabel.textColor = [t linkColor];
-    self.urlLabel.textAlignment = NSTextAlignmentCenter;
+    self.urlLabel.textAlignment = UITextAlignmentCenter;
     self.urlLabel.text = @"youtube.com/activate";
     self.urlLabel.userInteractionEnabled = YES;   // (a tap opens the address: on this device too, where the browser can)
     [self.urlLabel addGestureRecognizer:[[UITapGestureRecognizer alloc] initWithTarget:self action:@selector(urlTapped)]];
@@ -82,7 +82,7 @@
     self.codeLabel.backgroundColor = [UIColor clearColor];
     self.codeLabel.font = [UIFont boldSystemFontOfSize:TBIsPad() ? 44 : 30];
     self.codeLabel.textColor = [t primaryTextColor];
-    self.codeLabel.textAlignment = NSTextAlignmentCenter;
+    self.codeLabel.textAlignment = UITextAlignmentCenter;
     self.codeLabel.adjustsFontSizeToFitWidth = YES;
     [self.scrollView addSubview:self.codeLabel];
 
@@ -90,7 +90,7 @@
     self.statusLabel.backgroundColor = [UIColor clearColor];
     self.statusLabel.font = [UIFont systemFontOfSize:TBIsPad() ? 15 : 13];
     self.statusLabel.textColor = [t secondaryTextColor];
-    self.statusLabel.textAlignment = NSTextAlignmentCenter;
+    self.statusLabel.textAlignment = UITextAlignmentCenter;
     self.statusLabel.numberOfLines = 0;
     [self.scrollView addSubview:self.statusLabel];
 
@@ -193,7 +193,7 @@
     self.qrImageView.image = nil;
     self.codeLabel.text = @"";
     self.urlLabel.text = @"";
-    self.stepLabel.text = L(@"Asking Google for a code…");
+    self.stepLabel.text = L(@"Asking Google for a codeâ€¦");
     self.statusLabel.text = @"";
     [self.spinner startAnimating];
     [self.view setNeedsLayout];
@@ -215,7 +215,7 @@
             s.qrImageView.image = nil;
             s.stepLabel.text = L(@"On a computer or phone, open this address and enter the code:");
         }
-        s.statusLabel.text = L(@"Waiting for the confirmation… The code is good for a few minutes.");
+        s.statusLabel.text = L(@"Waiting for the confirmationâ€¦ The code is good for a few minutes.");
         [s.view setNeedsLayout];
     } completion:^(NSError *error) {
         TBGoogleLoginViewController *s = weakSelf;
@@ -230,7 +230,7 @@
         }
         s.qrContainer.hidden = YES;
         s.statusLabel.text = L(@"Signed in. Your subscriptions are being fetched.");
-        s.codeLabel.text = @"✓";
+        s.codeLabel.text = @"âœ“";
         [s.view setNeedsLayout];
         dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(1.2 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
             [weakSelf.navigationController popViewControllerAnimated:YES];

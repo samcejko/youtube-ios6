@@ -122,7 +122,7 @@ static NSString * const kFooterId = @"footer";
     self.messageLabel = [[UILabel alloc] initWithFrame:CGRectZero];
     self.messageLabel.backgroundColor = [UIColor clearColor];
     self.messageLabel.numberOfLines = 0;
-    self.messageLabel.textAlignment = NSTextAlignmentCenter;
+    self.messageLabel.textAlignment = UITextAlignmentCenter;
     self.messageLabel.font = [UIFont systemFontOfSize:15];
     self.messageLabel.hidden = YES;
     [self.view addSubview:self.messageLabel];

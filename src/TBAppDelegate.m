@@ -245,6 +245,9 @@ static NSUInteger TBHandoffGeneration;
     if ([target isEqualToString:@"diagnostics"]) {
         UIViewController *top=[TBNavigator presenterFrom:nil];
         NSMutableDictionary *result=[@{@"screen":NSStringFromClass([top class]),@"signedIn":@([[TBAccount shared] isSignedIn]),@"customClient":@([[TBAccount shared] usesCustomOAuthClient]),@"idleDisabled":@([UIApplication sharedApplication].idleTimerDisabled),@"keepScreenOn":@([TBSettings keepScreenOn])} mutableCopy];
+        result[@"appVersion"]=[TBUtils appVersion];
+        result[@"collectionBackend"]=NSStringFromClass(class_getSuperclass([PSUICollectionView class]));
+        result[@"collectionCellBackend"]=NSStringFromClass(class_getSuperclass([PSUICollectionViewCell class]));
         NSMutableArray *views=[NSMutableArray arrayWithArray:top.view.subviews],*labels=[NSMutableArray array];
         for (NSUInteger i=0;i<views.count;i++) { UIView *v=views[i];[views addObjectsFromArray:v.subviews];if(!v.hidden && [v isKindOfClass:[UILabel class]] && ((UILabel *)v).text.length)[labels addObject:((UILabel *)v).text]; }
         result[@"labels"]=labels;

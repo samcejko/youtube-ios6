@@ -97,11 +97,11 @@ static const CGFloat TBBarHeight = 44;
         _titleLabel.font = [UIFont boldSystemFontOfSize:15];
         _titleLabel.shadowColor = [UIColor colorWithWhite:0 alpha:0.7];
         _titleLabel.shadowOffset = CGSizeMake(0, 1);
-        _titleLabel.lineBreakMode = NSLineBreakByTruncatingTail;
+        _titleLabel.lineBreakMode = UILineBreakModeTruncatingTail;
         [_controls addSubview:_titleLabel];
         _subtitleButton = [UIButton buttonWithType:UIButtonTypeCustom];
         _subtitleButton.titleLabel.font = [UIFont systemFontOfSize:12];
-        _subtitleButton.titleLabel.lineBreakMode = NSLineBreakByTruncatingTail;
+        _subtitleButton.titleLabel.lineBreakMode = UILineBreakModeTruncatingTail;
         _subtitleButton.titleLabel.shadowOffset = CGSizeMake(0, 1);
         _subtitleButton.contentHorizontalAlignment = UIControlContentHorizontalAlignmentLeft;
         [_subtitleButton setTitleColor:[UIColor colorWithWhite:0.85 alpha:1] forState:UIControlStateNormal];
@@ -157,7 +157,7 @@ static const CGFloat TBBarHeight = 44;
         _timeLabel.backgroundColor = [UIColor clearColor];
         _timeLabel.textColor = [UIColor whiteColor];
         _timeLabel.font = [UIFont boldSystemFontOfSize:11];
-        _timeLabel.textAlignment = NSTextAlignmentRight;
+        _timeLabel.textAlignment = UITextAlignmentRight;
         [_controls addSubview:_timeLabel];
         _chatButton = [self iconButtonWithImage:[t chatIconOn:YES] action:@selector(chatTapped)];
         _chatButton.accessibilityLabel = L(@"Chat");
@@ -167,7 +167,7 @@ static const CGFloat TBBarHeight = 44;
         _adLabel.backgroundColor = [UIColor colorWithRed:0.85 green:0.65 blue:0.1 alpha:0.9];
         _adLabel.textColor = [UIColor blackColor];
         _adLabel.font = [UIFont boldSystemFontOfSize:11];
-        _adLabel.textAlignment = NSTextAlignmentCenter;
+        _adLabel.textAlignment = UITextAlignmentCenter;
         _adLabel.text = L(@"Ad");
         _adLabel.hidden = YES;
         [self addSubview:_adLabel];
@@ -180,7 +180,7 @@ static const CGFloat TBBarHeight = 44;
         _messageLabel.textColor = [UIColor whiteColor];
         _messageLabel.font = [UIFont systemFontOfSize:15];
         _messageLabel.numberOfLines = 0;
-        _messageLabel.textAlignment = NSTextAlignmentCenter;
+        _messageLabel.textAlignment = UITextAlignmentCenter;
         _messageLabel.hidden = YES;
         [self addSubview:_messageLabel];
         _retryButton = [UIButton buttonWithType:UIButtonTypeCustom];
@@ -202,7 +202,7 @@ static const CGFloat TBBarHeight = 44;
         _chapterLabel.font = [UIFont boldSystemFontOfSize:11];
         _chapterLabel.shadowColor = [UIColor colorWithWhite:0 alpha:0.7];
         _chapterLabel.shadowOffset = CGSizeMake(0, 1);
-        _chapterLabel.lineBreakMode = NSLineBreakByTruncatingTail;
+        _chapterLabel.lineBreakMode = UILineBreakModeTruncatingTail;
         _chapterLabel.hidden = YES;
         [_controls addSubview:_chapterLabel];
         _chapterMarkViews = [NSMutableArray array];
@@ -212,7 +212,7 @@ static const CGFloat TBBarHeight = 44;
         _hudLabel.backgroundColor = [UIColor colorWithWhite:0 alpha:0.6];
         _hudLabel.textColor = [UIColor whiteColor];
         _hudLabel.font = [UIFont boldSystemFontOfSize:15];
-        _hudLabel.textAlignment = NSTextAlignmentCenter;
+        _hudLabel.textAlignment = UITextAlignmentCenter;
         _hudLabel.layer.cornerRadius = 6;
         _hudLabel.clipsToBounds = YES;
         _hudLabel.hidden = YES;
@@ -320,7 +320,7 @@ static const CGFloat TBBarHeight = 44;
 - (void)setQualityTitle:(NSString *)qualityTitle
 {
     _qualityTitle = [qualityTitle copy];
-    [self.qualityButton setTitle:qualityTitle.length ? [qualityTitle stringByAppendingString:@" ▾"] : @"" forState:UIControlStateNormal];
+    [self.qualityButton setTitle:qualityTitle.length ? [qualityTitle stringByAppendingString:@" â–¾"] : @"" forState:UIControlStateNormal];
     self.qualityButton.hidden = qualityTitle.length == 0;
     [self setNeedsLayout];
 }
@@ -541,7 +541,7 @@ static const CGFloat TBBarHeight = 44;
             if (![self.delegate respondsToSelector:@selector(playerView:holdsFastForward:)]) return;
             if (![self.delegate playerView:self holdsFastForward:YES]) return;
             self.holdActive = YES;
-            [self showHUD:@"2× »"];
+            [self showHUD:@"2Ã— Â»"];
             break;
         case UIGestureRecognizerStateEnded:
         case UIGestureRecognizerStateCancelled:
@@ -600,7 +600,7 @@ static const CGFloat TBBarHeight = 44;
             CGFloat value = MAX(0, MIN(1, self.panStartValue + (-t.y / range)));   // drag up raises
             if (self.panIsVolume) [self setSystemVolume:value];
             else [UIScreen mainScreen].brightness = value;
-            [self showHUD:[NSString stringWithFormat:@"%@ %d%%", self.panIsVolume ? @"\U0001F50A" : @"☀", (int)round(value * 100)]];
+            [self showHUD:[NSString stringWithFormat:@"%@ %d%%", self.panIsVolume ? @"\U0001F50A" : @"â˜€", (int)round(value * 100)]];
             break;
         }
         case UIGestureRecognizerStateEnded:

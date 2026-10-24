@@ -227,7 +227,7 @@
     if (!cell) cell = [[UITableViewCell alloc] initWithStyle:UITableViewCellStyleDefault reuseIdentifier:@"s"];
     [t styleCell:cell];
     cell.textLabel.font = [UIFont systemFontOfSize:16];
-    cell.textLabel.textAlignment = NSTextAlignmentLeft;
+    cell.textLabel.textAlignment = UITextAlignmentLeft;
     cell.textLabel.textColor = [t primaryTextColor];
     if ([self showsRecent]) {
         NSArray *recent = [TBSettings recentSearches];
@@ -236,7 +236,7 @@
         } else {
             cell.textLabel.text = L(@"Clear recent searches");
             cell.textLabel.font = [UIFont systemFontOfSize:15];
-            cell.textLabel.textAlignment = NSTextAlignmentCenter;
+            cell.textLabel.textAlignment = UITextAlignmentCenter;
             cell.textLabel.textColor = [t secondaryTextColor];
         }
     } else {
