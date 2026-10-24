@@ -44,7 +44,7 @@ Tubie_CFLAGS += -DTB_GOOGLE_CLIENT_SECRET=\"$(strip $(TUBIE_GOOGLE_CLIENT_SECRET
 # Objective-C only: ARC; APIs newer than the deployment target are warnings here and turned into errors for our
 # own sources by the pragma in src/TBCommon.h (vendored code only warns). src/Util/TBModern.m bridges the newer
 # iOS on its own terms and opts out.
-Tubie_OBJCFLAGS := -fobjc-arc -Wunguarded-availability
+Tubie_OBJCFLAGS := -include src/Util/TBFoundationCompatibility.h -fobjc-arc -Wunguarded-availability
 
 Tubie_LDFLAGS := -lz
 

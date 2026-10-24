@@ -617,7 +617,7 @@ typedef NS_ENUM(NSInteger, TBWatchSection) {
                         s2.source.progressiveHeight = height;
                         s2.speedMP4 = YES;
                     } else {
-                        TBLog(@"Speed: no MP4 for %@ (%@), playing HLS at 1×", videoId, error2.localizedDescription);
+                        TBLog(@"Speed: no MP4 for %@ (%@), playing HLS at 1Ã—", videoId, error2.localizedDescription);
                     }
                     [s2 updateSpeedTitle];
                     [s2 playSource];
@@ -745,7 +745,7 @@ typedef NS_ENUM(NSInteger, TBWatchSection) {
 - (void)updateSpeedTitle
 {
     BOOL live = self.source ? self.source.isLive : self.video.isLive;
-    self.playerView.speedTitle = live ? @"" : [NSString stringWithFormat:@"%g×", [self appliedRate]];
+    self.playerView.speedTitle = live ? @"" : [NSString stringWithFormat:@"%gÃ—", [self appliedRate]];
 }
 
 // iOS 6: moves between the HLS rendition and the MP4 when the chosen speed asks for the other one, at the same
@@ -760,14 +760,14 @@ typedef NS_ENUM(NSInteger, TBWatchSection) {
     if (!wantMP4) {
         self.speedMP4 = NO;
         self.pendingSeek = position;
-        TBLog(@"Speed 1×: back to the HLS rendition at %.0f s", position);
+        TBLog(@"Speed 1Ã—: back to the HLS rendition at %.0f s", position);
         [self playSource];
         return YES;
     }
     if (self.source.progressiveURL.length) {
         self.speedMP4 = YES;
         self.pendingSeek = position;
-        TBLog(@"Speed %g×: the MP4 at %.0f s (iOS 6 cannot change the speed of HLS)", self.playbackRate, position);
+        TBLog(@"Speed %gÃ—: the MP4 at %.0f s (iOS 6 cannot change the speed of HLS)", self.playbackRate, position);
         [self playSource];
         return YES;
     }
@@ -780,8 +780,8 @@ typedef NS_ENUM(NSInteger, TBWatchSection) {
         if (!s || ![s.video.videoId isEqualToString:videoId]) return;
         s.speedTask = nil;
         if (!url.length) {
-            TBLog(@"Speed: no MP4 for %@ (%@), staying at 1×", videoId, error.localizedDescription);
-            [TBUtils alertWithTitle:L(@"Speed") message:L(@"On iOS 6 only the MP4 version of a video can play faster or slower, and YouTube offers none for this video. It plays at 1×.")];
+            TBLog(@"Speed: no MP4 for %@ (%@), staying at 1Ã—", videoId, error.localizedDescription);
+            [TBUtils alertWithTitle:L(@"Speed") message:L(@"On iOS 6 only the MP4 version of a video can play faster or slower, and YouTube offers none for this video. It plays at 1Ã—.")];
             [s updateSpeedTitle];
             return;
         }
@@ -798,7 +798,7 @@ typedef NS_ENUM(NSInteger, TBWatchSection) {
     self.playbackRate = rate;
     [TBSettings setPlaybackRate:rate];
     [TBSettings save];
-    TBLog(@"Speed %g×", rate);
+    TBLog(@"Speed %gÃ—", rate);
     if (![self switchSourceForRate]) [self applyRate];
     else [self updateSpeedTitle];
     [self.tableView reloadData];
@@ -809,7 +809,7 @@ typedef NS_ENUM(NSInteger, TBWatchSection) {
     if (self.source.isLive) return;
     UIActionSheet *sheet = [[RetroActionSheet alloc] initWithTitle:L(@"Speed") delegate:self cancelButtonTitle:nil destructiveButtonTitle:nil otherButtonTitles:nil];
     for (NSUInteger i = 0; i < TBSpeedCount; i++) {
-        [sheet addButtonWithTitle:[NSString stringWithFormat:@"%g×%@", TBSpeeds[i], fabsf(TBSpeeds[i] - self.playbackRate) < 0.01f ? @" ✓" : @""]];
+        [sheet addButtonWithTitle:[NSString stringWithFormat:@"%gÃ—%@", TBSpeeds[i], fabsf(TBSpeeds[i] - self.playbackRate) < 0.01f ? @" âœ“" : @""]];
     }
     sheet.cancelButtonIndex = [sheet addButtonWithTitle:L(@"Cancel")];
     self.pendingSheet = 3;
@@ -1032,7 +1032,7 @@ typedef NS_ENUM(NSInteger, TBWatchSection) {
     NSInteger status = self.item.status;
     return [NSString stringWithFormat:@"rate %.2f (chosen %.2f%@%@, ff %d sf %d) at %.1f/%.1f s, item %@%@, tracks [%@], buffered [%@], size %.0fx%.0f, empty %d keepUp %d, variant %@",
             self.player.rate, self.playbackRate, self.holdingFast ? @", held 2x" : @"", self.speedMP4 ? @", MP4 for the speed" : @"",
-            self.item.canPlayFastForward, self.item.canPlaySlowForward, CMTimeGetSeconds(self.player.currentTime), CMTimeGetSeconds(self.item.duration),
+            ([self.item respondsToSelector:@selector(canPlayFastForward)] ? self.item.canPlayFastForward : NO), ([self.item respondsToSelector:@selector(canPlaySlowForward)] ? self.item.canPlaySlowForward : NO), CMTimeGetSeconds(self.player.currentTime), CMTimeGetSeconds(self.item.duration),
             status >= 0 && status <= 2 ? statusNames[status] : @"?", self.item.error ? [NSString stringWithFormat:@" (%@)", self.item.error.localizedDescription] : @"",
             [tracks componentsJoinedByString:@", "], [ranges componentsJoinedByString:@", "],
             self.item.presentationSize.width, self.item.presentationSize.height,
@@ -1369,12 +1369,12 @@ typedef NS_ENUM(NSInteger, TBWatchSection) {
 - (void)playerViewDidTapQuality:(TBPlayerView *)view fromView:(UIView *)anchor
 {
     // (iOS 6 at another speed plays the MP4: a quality picked here means the HLS rendition again, at 1x)
-    NSString *heading = self.speedMP4 ? L(@"At speeds other than 1× iOS 6 plays the 360p MP4. Picking a quality returns to 1×.") : L(@"Quality");
+    NSString *heading = self.speedMP4 ? L(@"At speeds other than 1Ã— iOS 6 plays the 360p MP4. Picking a quality returns to 1Ã—.") : L(@"Quality");
     UIActionSheet *sheet = [[RetroActionSheet alloc] initWithTitle:heading delegate:self cancelButtonTitle:nil destructiveButtonTitle:nil otherButtonTitles:nil];
     if (self.source.hasHLS) {
-        [sheet addButtonWithTitle:[NSString stringWithFormat:@"%@%@", L(@"Auto"), (self.currentVariant || self.speedMP4) ? @"" : @" ✓"]];
+        [sheet addButtonWithTitle:[NSString stringWithFormat:@"%@%@", L(@"Auto"), (self.currentVariant || self.speedMP4) ? @"" : @" âœ“"]];
         for (TBVariant *v in self.source.variants) {
-            [sheet addButtonWithTitle:[NSString stringWithFormat:@"%@%@", [v title], v == self.currentVariant ? @" ✓" : @""]];
+            [sheet addButtonWithTitle:[NSString stringWithFormat:@"%@%@", [v title], v == self.currentVariant ? @" âœ“" : @""]];
         }
     } else {
         [sheet addButtonWithTitle:self.playerView.qualityTitle.length ? self.playerView.qualityTitle : L(@"Video")];
@@ -1465,7 +1465,7 @@ typedef NS_ENUM(NSInteger, TBWatchSection) {
             self.speedMP4 = NO;
             self.playbackRate = 1.0f;
             [TBSettings setPlaybackRate:1.0f];
-            TBLog(@"Quality %@ picked while at another speed: back to HLS at 1×", quality);
+            TBLog(@"Quality %@ picked while at another speed: back to HLS at 1Ã—", quality);
         }
         [TBSettings save];
         if (!self.source.isLive && self.item) self.pendingSeek = MAX(0, CMTimeGetSeconds(self.player.currentTime));
@@ -1511,8 +1511,8 @@ typedef NS_ENUM(NSInteger, TBWatchSection) {
         case 0: {   // like / dislike: the account rates; without one the counts are all there is
             if ([[TBAccount shared] isSignedIn]) {
                 UIActionSheet *sheet = [[RetroActionSheet alloc] initWithTitle:L(@"Rating") delegate:self cancelButtonTitle:nil destructiveButtonTitle:nil otherButtonTitles:nil];
-                [sheet addButtonWithTitle:[NSString stringWithFormat:@"%@%@", L(@"Like"), [self.rating isEqualToString:@"like"] ? @" ✓" : @""]];
-                [sheet addButtonWithTitle:[NSString stringWithFormat:@"%@%@", L(@"Dislike"), [self.rating isEqualToString:@"dislike"] ? @" ✓" : @""]];
+                [sheet addButtonWithTitle:[NSString stringWithFormat:@"%@%@", L(@"Like"), [self.rating isEqualToString:@"like"] ? @" âœ“" : @""]];
+                [sheet addButtonWithTitle:[NSString stringWithFormat:@"%@%@", L(@"Dislike"), [self.rating isEqualToString:@"dislike"] ? @" âœ“" : @""]];
                 [sheet addButtonWithTitle:L(@"Remove rating")];
                 sheet.cancelButtonIndex = [sheet addButtonWithTitle:L(@"Cancel")];
                 self.pendingSheet = 5;
@@ -1542,8 +1542,8 @@ typedef NS_ENUM(NSInteger, TBWatchSection) {
             NSArray *tracks = self.source.info.captionTracks;
             if (!tracks.count) { [TBUtils alertWithTitle:L(@"Captions") message:L(@"This video has no captions.")]; break; }
             UIActionSheet *sheet = [[RetroActionSheet alloc] initWithTitle:L(@"Captions") delegate:self cancelButtonTitle:nil destructiveButtonTitle:nil otherButtonTitles:nil];
-            [sheet addButtonWithTitle:[NSString stringWithFormat:@"%@%@", L(@"Off"), self.captionTrack ? @"" : @" ✓"]];
-            for (TBCaptionTrack *t in tracks) [sheet addButtonWithTitle:[NSString stringWithFormat:@"%@%@", t.name ?: t.languageCode, t == self.captionTrack ? @" ✓" : @""]];
+            [sheet addButtonWithTitle:[NSString stringWithFormat:@"%@%@", L(@"Off"), self.captionTrack ? @"" : @" âœ“"]];
+            for (TBCaptionTrack *t in tracks) [sheet addButtonWithTitle:[NSString stringWithFormat:@"%@%@", t.name ?: t.languageCode, t == self.captionTrack ? @" âœ“" : @""]];
             sheet.cancelButtonIndex = [sheet addButtonWithTitle:L(@"Cancel")];
             self.pendingSheet = 4;
             if (TBIsPad()) [sheet showFromRect:button.bounds inView:button animated:YES];
@@ -1625,7 +1625,7 @@ typedef NS_ENUM(NSInteger, TBWatchSection) {
     if (views.length) [parts addObject:views];
     if (self.info.dateText.length) [parts addObject:self.info.dateText];
     else if (self.source.info.publishDate.length) [parts addObject:self.source.info.publishDate];
-    return [parts componentsJoinedByString:@" · "];
+    return [parts componentsJoinedByString:@" Â· "];
 }
 
 - (CGFloat)tableView:(UITableView *)tableView heightForRowAtIndexPath:(NSIndexPath *)indexPath
@@ -1680,14 +1680,14 @@ typedef NS_ENUM(NSInteger, TBWatchSection) {
             }
             TBWatchActionsCell *cell = [[TBWatchActionsCell alloc] initWithStyle:UITableViewCellStyleDefault reuseIdentifier:nil];
             [t styleCell:cell];
-            NSString *likes = self.votes ? [TBUtils formatCount:(NSInteger)MIN(self.votes.likes, (long long)NSIntegerMax)] : (self.info.likesText ?: @"–");
+            NSString *likes = self.votes ? [TBUtils formatCount:(NSInteger)MIN(self.votes.likes, (long long)NSIntegerMax)] : (self.info.likesText ?: @"â€“");
             NSString *dislikes = self.votes && [TBSettings showDislikes] ? [TBUtils formatCount:(NSInteger)MIN(self.votes.dislikes, (long long)NSIntegerMax)] : nil;
             NSString *rating = dislikes ? [NSString stringWithFormat:@"%@: %@ / %@: %@", L(@"Like"), likes, L(@"Dislike"), dislikes] : [NSString stringWithFormat:@"%@: %@", L(@"Like"), likes];
-            if ([self.rating isEqualToString:@"like"]) rating = [NSString stringWithFormat:@"%@ ✓ %@", L(@"Like"), likes];
-            else if ([self.rating isEqualToString:@"dislike"]) rating = [NSString stringWithFormat:@"%@ ✓ %@", L(@"Dislike"), dislikes ?: @""];
+            if ([self.rating isEqualToString:@"like"]) rating = [NSString stringWithFormat:@"%@ âœ“ %@", L(@"Like"), likes];
+            else if ([self.rating isEqualToString:@"dislike"]) rating = [NSString stringWithFormat:@"%@ âœ“ %@", L(@"Dislike"), dislikes ?: @""];
             BOOL later = [[TBLibrary shared] isInWatchLater:self.video.videoId];
-            NSArray *titles = @[ rating, later ? L(@"✓ Later") : L(@"Watch later"), self.captionTrack ? L(@"CC ✓") : L(@"CC"),
-                                 self.source.isLive ? L(@"Live") : [NSString stringWithFormat:@"%g×", self.playbackRate] ];
+            NSArray *titles = @[ rating, later ? L(@"âœ“ Later") : L(@"Watch later"), self.captionTrack ? L(@"CC âœ“") : L(@"CC"),
+                                 self.source.isLive ? L(@"Live") : [NSString stringWithFormat:@"%gÃ—", self.playbackRate] ];
             for (NSUInteger i = 0; i < titles.count; i++) {
                 UIButton *b = cell.buttons[i];
                 [b setTitle:titles[i] forState:UIControlStateNormal];
@@ -1721,7 +1721,7 @@ typedef NS_ENUM(NSInteger, TBWatchSection) {
             UIButton *subscribe = [UIButton buttonWithType:UIButtonTypeCustom];
             BOOL subscribed = [[TBLibrary shared] isSubscribed:self.video.channelId];
             subscribe.titleLabel.font = [UIFont boldSystemFontOfSize:13];
-            [subscribe setTitle:subscribed ? L(@"Subscribed ✓") : L(@"Subscribe") forState:UIControlStateNormal];
+            [subscribe setTitle:subscribed ? L(@"Subscribed âœ“") : L(@"Subscribe") forState:UIControlStateNormal];
             [subscribe setTitleColor:subscribed ? [t primaryTextColor] : [UIColor whiteColor] forState:UIControlStateNormal];
             [subscribe setBackgroundImage:subscribed ? [t buttonImageHighlighted:NO] : [t accentButtonImageHighlighted:NO disabled:NO] forState:UIControlStateNormal];
             [subscribe setBackgroundImage:subscribed ? [t buttonImageHighlighted:YES] : [t accentButtonImageHighlighted:YES disabled:NO] forState:UIControlStateHighlighted];

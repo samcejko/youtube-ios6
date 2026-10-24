@@ -10,8 +10,6 @@ static void TBAddMissing(Class cls, SEL destination, SEL implementation)
     class_addMethod(cls, destination, method_getImplementation(method), method_getTypeEncoding(method));
 }
 
-@interface NSArray (TBEarlierFoundation)
-@end
 @implementation NSArray (TBEarlierFoundation)
 + (void)load
 {

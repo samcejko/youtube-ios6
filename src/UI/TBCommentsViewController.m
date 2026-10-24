@@ -160,7 +160,7 @@
 - (UITableViewCell *)tableView:(UITableView *)tableView cellForRowAtIndexPath:(NSIndexPath *)indexPath
 {
     TBCommentCell *cell = [tableView dequeueReusableCellWithIdentifier:[TBCommentCell reuseIdentifier]];
-            if (!cell) cell = [[TBCommentCell alloc] initWithStyle:UITableViewCellStyleDefault reuseIdentifier:[TBCommentCell reuseIdentifier]];
+    if (!cell) cell = [[TBCommentCell alloc] initWithStyle:UITableViewCellStyleDefault reuseIdentifier:[TBCommentCell reuseIdentifier]];
     [cell configureWithComment:self.comments[(NSUInteger)indexPath.row]];
     __weak TBCommentsViewController *weakSelf = self;
     cell.onLink = ^(NSString *url, UIView *anchor) { [TBNavigator openLink:[NSURL URLWithString:url] from:weakSelf anchor:anchor]; };
