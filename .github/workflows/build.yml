@@ -17,7 +17,16 @@ env:
   THEOS_CACHE_KEY: theos-linux-clang11-sdk93-sdk165-v2
 
 jobs:
+  playback-test:
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verify independent resolver and MP4 index bounds
+        run: |
+          clang -fobjc-arc -g -fsanitize=address,undefined -framework Foundation -Isrc/YouTube -Isrc/Net tools/check_playback.m src/YouTube/TBResolver.m src/YouTube/TBPlaybackModels.m src/Net/TBRemux.m -o /tmp/check-playback
+          /tmp/check-playback
   build:
+    needs: playback-test
     # One source tree, two packages: armv7 for iOS 6 (Cydia, ipainstaller) and arm64 for iOS 14-17 (the .deb for
     # rootless jailbreaks, the IPA for TrollStore). THEOS_PACKAGE_SCHEME=rootless selects the latter in the Makefile.
     strategy:

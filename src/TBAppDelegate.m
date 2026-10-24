@@ -12,6 +12,10 @@
 #import "TBCommon.h"
 #import "TBInnertube.h"
 #import "MusicHandoff.h"
+#import "TBAccount.h"
+#import "TBStudio.h"
+#import "TBFrameProbe.h"
+#import <AVFoundation/AVFoundation.h>
 #include <dlfcn.h>
 #include <signal.h>
 #include <mach/mach.h>
@@ -195,6 +199,35 @@ static NSUInteger TBHandoffGeneration;
     }
     BOOL debug = [[NSFileManager defaultManager] fileExistsAtPath:[[TBUtils documentsPath] stringByAppendingPathComponent:@"debug"]];
     if (!debug) return YES;
+    if ([target isEqualToString:@"studioprobe"]) {
+        [@"{\"running\":true}" writeToFile:[NSTemporaryDirectory() stringByAppendingPathComponent:@"studio-probe.json"] atomically:YES encoding:NSUTF8StringEncoding error:NULL];
+        [TBStudio dashboardForDays:28 completion:^(NSDictionary *result) {
+            [[NSJSONSerialization dataWithJSONObject:result options:0 error:NULL] writeToFile:[NSTemporaryDirectory() stringByAppendingPathComponent:@"studio-probe.json"] atomically:YES];
+        }];return YES;
+    }
+    if ([target isEqualToString:@"frame"]) {
+        UIViewController *top=[TBNavigator presenterFrom:nil];
+        if ([top isKindOfClass:[TBWatchViewController class]]) [TBFrameProbe capturePlayer:[top valueForKey:@"player"] completion:^(NSDictionary *result) {
+            [[NSJSONSerialization dataWithJSONObject:result options:0 error:NULL] writeToFile:[NSTemporaryDirectory() stringByAppendingPathComponent:@"frame-probe.json"] atomically:YES];
+        }];return YES;
+    }
+    if ([target isEqualToString:@"diagnostics"]) {
+        UIViewController *top=[TBNavigator presenterFrom:nil];
+        NSMutableDictionary *result=[@{@"screen":NSStringFromClass([top class]),@"signedIn":@([[TBAccount shared] isSignedIn]),@"customClient":@([[TBAccount shared] usesCustomOAuthClient]),@"idleDisabled":@([UIApplication sharedApplication].idleTimerDisabled),@"keepScreenOn":@([TBSettings keepScreenOn])} mutableCopy];
+        NSMutableArray *views=[NSMutableArray arrayWithArray:top.view.subviews],*labels=[NSMutableArray array];
+        for (NSUInteger i=0;i<views.count;i++) { UIView *v=views[i];[views addObjectsFromArray:v.subviews];if(!v.hidden && [v isKindOfClass:[UILabel class]] && ((UILabel *)v).text.length)[labels addObject:((UILabel *)v).text]; }
+        result[@"labels"]=labels;
+        if ([top isKindOfClass:[TBWatchViewController class]]) {
+            AVPlayer *player=[top valueForKey:@"player"];AVPlayerItem *item=player.currentItem;
+            double position=CMTimeGetSeconds(player.currentTime);
+            result[@"rate"]=@(player.rate);result[@"position"]=@(isfinite(position)?position:0);result[@"itemStatus"]=@(item.status);
+            result[@"playerDescription"]=[(TBWatchViewController *)top playbackDebugDescription] ?: @"";
+            UIView *playerView=[top valueForKey:@"playerView"];
+            AVPlayerLayer *layer=[playerView valueForKey:@"playerLayer"];
+            result[@"layerAttached"]=@(player && layer.player==player);result[@"readyForDisplay"]=@(layer.readyForDisplay);
+        }
+        [[NSJSONSerialization dataWithJSONObject:result options:0 error:NULL] writeToFile:[NSTemporaryDirectory() stringByAppendingPathComponent:@"tubie-diagnostics.json"] atomically:YES];return YES;
+    }
     if ([target isEqualToString:@"proxylog"]) {
         // every request the player makes to the media proxy goes to the log (proxylog?on=0 stops it)
         [TBMediaProxy shared].logRequests = ![params[@"on"] isEqualToString:@"0"];

@@ -120,6 +120,7 @@
 @property (nonatomic) NSTimeInterval duration;
 @property (nonatomic) NSInteger audioSampleRate;
 @property (nonatomic) NSInteger audioChannels;
+@property (nonatomic, copy) NSDictionary *httpHeaders;          // resolver-supplied media headers, never account credentials
 @property (nonatomic) BOOL isDefaultAudio;                  // the original sound track (not an automatic dub)
 @property (nonatomic, copy) NSString *audioTrackName;
 @end

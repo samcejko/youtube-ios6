@@ -1,5 +1,7 @@
 #import "TBRemux.h"
-#import "TBCommon.h"
+#import <math.h>
+#import <stdlib.h>
+#import <string.h>
 
 // Timestamps are shifted by this much (90 kHz units) so that DTS never goes below zero (edit lists move the
 // pictures earlier, B-frames put DTS before PTS)
@@ -227,9 +229,11 @@ typedef struct {
     uint8_t version = p[0];
     uint32_t timescale = TBBE32(p + 8);
     NSUInteger o = 12;
+    if (end-start < (version==1 ? 32 : 24)) return @"short sidx timestamp";
     uint64_t earliest, firstOffset;
     if (version == 1) { earliest = TBBE64(p + o); firstOffset = TBBE64(p + o + 8); o += 16; }
     else { earliest = TBBE32(p + o); firstOffset = TBBE32(p + o + 4); o += 8; }
+    if (start+o+4 > end) return @"short sidx count";
     uint16_t count = TBBE16(p + o + 2);
     o += 4;
     if (start + o + (NSUInteger)count * 12 > end) return @"truncated sidx";
@@ -313,6 +317,7 @@ typedef struct {
                 if (tfFlags & 0x000020) { if (o + 4 <= len) defaultFlags = TBBE32(p + o); o += 4; }
                 if (!(tfFlags & 0x000001) && (tfFlags & 0x020000)) baseDataOffset = (int64_t)moofStart;
             } else if (t2 == kTfdt && len >= 8) {
+                if (p[0]==1 && len<12) return;
                 decodeTime = p[0] == 1 ? (int64_t)TBBE64(p + 4) : TBBE32(p + 4);
                 haveTfdt = YES;
             } else if (t2 == kTrun && len >= 8 && count < 0) {
@@ -321,13 +326,15 @@ typedef struct {
                 uint32_t sampleCount = TBBE32(p + 4);
                 NSUInteger o = 8;
                 int64_t dataOffset = baseDataOffset;
+                if ((flags & 0x000001) && o+4>len) return;
                 if (flags & 0x000001) { dataOffset += (int32_t)TBBE32(p + o); o += 4; }
                 uint32_t firstFlags = defaultFlags;
                 BOOL haveFirstFlags = NO;
+                if ((flags & 0x000004) && o+4>len) return;
                 if (flags & 0x000004) { firstFlags = TBBE32(p + o); o += 4; haveFirstFlags = YES; }
                 if (sampleCount > 65536) sampleCount = 65536;
                 NSUInteger per = ((flags & 0x100) ? 4 : 0) + ((flags & 0x200) ? 4 : 0) + ((flags & 0x400) ? 4 : 0) + ((flags & 0x800) ? 4 : 0);
-                if (o + sampleCount * per > len) sampleCount = (uint32_t)((len - o) / MAX(per, (NSUInteger)1));
+                if (o>len || (per>0 && sampleCount>(len-o)/per)) return;
                 for (uint32_t i = 0; i < sampleCount; i++) {
                     TBSample *smp = &samples[i];
                     smp->duration = defaultDuration;

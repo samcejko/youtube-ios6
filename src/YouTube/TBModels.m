@@ -369,20 +369,11 @@ long long TBNumberFromText(NSString *text)
 
 @end
 
-@implementation TBDashFormat
-@end
 
-@implementation TBAudioRendition
-@end
 
-@implementation TBPlayerInfo
 
-- (BOOL)isPlayable
-{
-    return [self.status isEqualToString:@"OK"] && (self.hlsManifestURL.length || self.progressiveURL.length);
-}
 
-@end
+
 
 @implementation TBShelf
 @end

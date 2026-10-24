@@ -1287,35 +1287,32 @@ static NSString *TBGenerateCPN(void)
 
 + (TBHTTPTask *)player:(NSString *)videoId client:(TBClient)client completion:(void (^)(TBPlayerInfo *info, NSError *error))completion
 {
-    NSDictionary *body = @{ @"videoId": videoId ?: @"", @"contentCheckOk": @YES, @"racyCheckOk": @YES };
+    TBHTTPTask *outer=[[TBHTTPTask alloc] init];
+    __block TBHTTPTask *authTask=nil,*requestTask=nil;
+    outer.cancelBlock=^{ [authTask cancel];[requestTask cancel]; };
+    NSDictionary *body=@{@"videoId":videoId ?: @"",@"contentCheckOk":@YES,@"racyCheckOk":@YES};
+    void (^anonymous)(TBPlayerInfo *,NSError *)=^(TBPlayerInfo *original,NSError *originalError) {
+        if (outer.isCancelled) return;
+        requestTask=[self call:@"player" body:body client:client completion:^(NSDictionary *response,NSError *error) {
+            if (outer.isCancelled) return;
+            TBPlayerInfo *info=response ? [self playerInfoFromResponse:response videoId:videoId] : nil;
+            if (!info.isPlayable && original.statusReason.length) completion(original,originalError);
+            else completion(info,error);
+        }];
+    };
     if ([[TBAccount shared] isSignedIn]) {
-        return [[TBAccount shared] withAccessToken:^(NSString *token, NSError *authError) {
-            if (!token.length) {
-                [self call:@"player" body:body client:client completion:^(NSDictionary *response, NSError *error) {
-                    if (error) { completion(nil, error); return; }
-                    completion([self playerInfoFromResponse:response videoId:videoId], nil);
-                }];
-                return;
-            }
-            [self call:@"player" body:body client:client token:token completion:^(NSDictionary *response, NSError *error) {
-                TBPlayerInfo *info = response ? [self playerInfoFromResponse:response videoId:videoId] : nil;
-                if ((error && !response) || (info && !info.isPlayable)) {
-                    // Fallback to anonymous player call so playback never fails (e.g. if token causes unplayable response)
-                    [self call:@"player" body:body client:client completion:^(NSDictionary *anonResp, NSError *anonErr) {
-                        if (anonErr) { completion(info, anonErr); return; }
-                        TBPlayerInfo *anonInfo = [self playerInfoFromResponse:anonResp videoId:videoId];
-                        completion(anonInfo, nil);
-                    }];
-                    return;
-                }
-                completion(info, nil);
+        authTask=[[TBAccount shared] withAccessToken:^(NSString *token,NSError *authError) {
+            if (outer.isCancelled) return;
+            if (!token.length) { anonymous(nil,authError);return; }
+            requestTask=[self call:@"player" body:body client:client token:token completion:^(NSDictionary *response,NSError *error) {
+                if (outer.isCancelled) return;
+                TBPlayerInfo *info=response ? [self playerInfoFromResponse:response videoId:videoId] : nil;
+                if (!info.isPlayable) { anonymous(info,error);return; }
+                completion(info,error);
             }];
         }];
-    }
-    return [self call:@"player" body:body client:client completion:^(NSDictionary *response, NSError *error) {
-        if (error) { completion(nil, error); return; }
-        completion([self playerInfoFromResponse:response videoId:videoId], nil);
-    }];
+    } else anonymous(nil,nil);
+    return outer;
 }
 
 + (void)reportPlayback:(TBPlayerInfo *)info

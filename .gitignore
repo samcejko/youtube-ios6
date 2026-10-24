@@ -11,3 +11,7 @@ Resources/cacert.pem
 .DS_Store
 local.json
 .env
+
+__pycache__/
+*.pyc
+*.log

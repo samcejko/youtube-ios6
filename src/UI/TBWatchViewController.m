@@ -332,6 +332,7 @@ typedef NS_ENUM(NSInteger, TBWatchSection) {
     NSNotificationCenter *nc = [NSNotificationCenter defaultCenter];
     [nc addObserver:self selector:@selector(didEnterBackground) name:UIApplicationDidEnterBackgroundNotification object:nil];
     [nc addObserver:self selector:@selector(willEnterForeground) name:UIApplicationWillEnterForegroundNotification object:nil];
+    [nc addObserver:self selector:@selector(restoreVideoSurface) name:UIApplicationDidBecomeActiveNotification object:nil];
     [nc addObserver:self selector:@selector(themeChanged) name:TBThemeDidChangeNotification object:nil];
     [nc addObserver:self selector:@selector(libraryChanged) name:TBLibraryDidChangeNotification object:nil];
     [nc addObserver:self selector:@selector(imageLoaded:) name:TBImageDidLoadNotification object:nil];
@@ -360,6 +361,7 @@ typedef NS_ENUM(NSInteger, TBWatchSection) {
     [super viewDidAppear:animated];
     [[UIApplication sharedApplication] beginReceivingRemoteControlEvents];
     [self becomeFirstResponder];
+    [self restoreVideoSurface];
 }
 
 - (void)viewWillDisappear:(BOOL)animated
@@ -445,11 +447,19 @@ typedef NS_ENUM(NSInteger, TBWatchSection) {
 
 - (void)themeChanged { [self applyTheme]; }
 - (void)libraryChanged { [self.tableView reloadData]; }
-- (void)settingsChanged { [self.tableView reloadData]; }
+- (void)settingsChanged { [self.tableView reloadData];[self updateIdleTimer]; }
 
 - (void)imageLoaded:(NSNotification *)note
 {
     // (avatars arrive after the rows were drawn)
+}
+
+- (void)restoreVideoSurface
+{
+    if (self.inBackground || !self.isViewLoaded || !self.view.window) return;
+    // Foreground/rotation may recreate the render surface while the audio session keeps playing.
+    if (self.playerView.player != self.player) self.playerView.player=self.player;
+    [self.playerView setNeedsLayout];[self updateIdleTimer];
 }
 
 - (void)updateIdleTimer
@@ -1295,6 +1305,7 @@ typedef NS_ENUM(NSInteger, TBWatchSection) {
 {
     self.inBackground = NO;
     self.playerView.player = self.player;
+    [self updateIdleTimer];
     TBMediaProxy *proxy = [TBMediaProxy shared];
     [proxy ensureRunning];
     if (proxy.generation != self.proxyGeneration && !self.ended && self.source) {

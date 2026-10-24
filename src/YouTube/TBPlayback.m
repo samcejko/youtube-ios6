@@ -1,4 +1,5 @@
 #import "TBPlayback.h"
+#import "TBResolver.h"
 #import "TBInnertube.h"
 #import "TBMediaProxy.h"
 #import "TBSettings.h"
@@ -151,7 +152,8 @@ static NSDictionary *TBParseAttributes(NSString *list)
 + (NSError *)errorForInfo:(TBPlayerInfo *)info
 {
     NSString *status = info.status ?: @"";
-    if ([status isEqualToString:@"LOGIN_REQUIRED"]) return TBMakeError(TBErrorAuth, L(@"This video asks for a signed-in viewer (age restriction), which the app cannot do."));
+    if (info.statusReason.length) return TBMakeError([status isEqualToString:@"LOGIN_REQUIRED"] ? TBErrorAuth : TBErrorRestricted, info.statusReason);
+    if ([status isEqualToString:@"LOGIN_REQUIRED"]) return TBMakeError(TBErrorAuth, L(@"YouTube requires playback verification. Signing into the account does not always clear this check."));
     if ([status isEqualToString:@"LIVE_STREAM_OFFLINE"]) return TBMakeError(TBErrorOffline, info.statusReason.length ? info.statusReason : L(@"This live stream has not started yet."));
     if (info.statusReason.length) return TBMakeError(TBErrorRestricted, info.statusReason);
     return TBMakeError(TBErrorAPI, L(@"This video cannot be played."));
@@ -219,11 +221,29 @@ static NSDictionary *TBParseAttributes(NSString *list)
     // just swaps in these URLs, so the proxy can remux the WHOLE video at up to 1080p - no 60 s wall. Off by default.
     void (^resolverThenRemux)(TBPlayerInfo *) = ^(TBPlayerInfo *info) {
         NSString *base = [TBSettings resolverBase];
-        if (!base.length || info.isLive || !info.dashVideo.count || !info.dashAudio) { shortRemuxOrAndroid(info); return; }
+        if (!base.length || info.isLive) { shortRemuxOrAndroid(info); return; }
         NSString *url = [NSString stringWithFormat:@"%@/resolve?id=%@", base, [TBUtils urlEncode:videoId]];
         inner = [TBHTTP request:@"GET" url:url headers:nil body:nil retries:0 completion:^(NSInteger status, NSData *data, NSDictionary *headers, NSError *error) {
             if (outer.isCancelled) return;
             NSDictionary *j = (status == 200 && data.length) ? TBDict([TBUtils JSONObjectFromData:data]) : nil;
+            TBPlayerInfo *resolved=[TBResolver playerInfoFromResponse:j videoId:videoId];
+            if (resolved) {
+                resolved.captionTracks=info.captionTracks;resolved.viewCount=info.viewCount;resolved.resumePosition=info.resumePosition;
+                resolved.playbackUrl=info.playbackUrl;resolved.watchtimeUrl=info.watchtimeUrl;resolved.cpn=info.cpn;
+                source.info=resolved;source.isLive=resolved.isLive;
+                source.progressiveURL=resolved.progressiveURL;source.progressiveHeight=resolved.progressiveHeight;
+                if (resolved.hlsManifestURL.length && !preferProgressive) { finishWithHLS(resolved.hlsManifestURL,TBClientIOS);return; }
+                if (resolved.progressiveURL.length && preferProgressive) { completion(source,nil);return; }
+                NSArray *variants=[self remuxVariantsForInfo:resolved];
+                if (variants.count) {
+                    source.variants=variants;
+                    TBAudioRendition *sound=[[TBAudioRendition alloc] init];sound.groupId=@"dash";sound.name=@"Default";sound.url=resolved.dashAudio.url;sound.dash=resolved.dashAudio;
+                    source.audioRenditions=@[sound];completion(source,nil);return;
+                }
+                if (source.progressiveURL.length) { completion(source,nil);return; }
+                // Unsupported device qualities must not discard the original reason/fallback.
+                source.info=info;
+            }
             if ([self patchDashFormatsIn:info withResolverFormats:TBDict(j[@"formats"])]) {
                 NSArray *variants = [self remuxVariantsForInfo:info];
                 if (variants.count) {
@@ -248,13 +268,13 @@ static NSDictionary *TBParseAttributes(NSString *list)
     // can remux into the same kind of stream)
     inner = [TBInnertube player:videoId client:TBClientIOS completion:^(TBPlayerInfo *info, NSError *error) {
         if (outer.isCancelled) return;
-        if (error) { completion(nil, error); return; }
+        if (error) { resolverThenRemux(nil); return; }
         source.info = info;
         source.isLive = info.isLive;
         if (info.progressiveURL.length) { source.progressiveURL = info.progressiveURL; source.progressiveHeight = info.progressiveHeight; }
-        if (![info.status isEqualToString:@"OK"]) { askAndroid(); return; }   // (the other client may be luckier)
-        if (info.isLive || preferProgressive) { askAndroid(); return; }
-        if (info.hlsManifestURL.length) { finishWithHLS(info.hlsManifestURL, TBClientIOS); return; }
+        if (![info.status isEqualToString:@"OK"]) { resolverThenRemux(info); return; }   // (the other client may be luckier)
+        if (info.isLive) { askAndroid(); return; }
+        if (info.hlsManifestURL.length && !preferProgressive) { finishWithHLS(info.hlsManifestURL, TBClientIOS); return; }
         // the resolver (if its address is set) remuxes the whole video at full quality; otherwise only short clips
         // remux and longer videos fall back to the Android progressive MP4 (un-tokened adaptive URLs die after ~60 s)
         resolverThenRemux(info);

@@ -232,7 +232,7 @@ static void TBKeychainWrite(NSDictionary *tokens)
 
     BOOL customClient = [self usesCustomOAuthClient];
     NSString *deviceCodeURL = customClient ? @"https://oauth2.googleapis.com/device/code" : TBGoogleDeviceCodeURL;
-    NSString *scope = customClient ? @"https://www.googleapis.com/auth/youtube.force-ssl" : TBGoogleScope;
+    NSString *scope = customClient ? @"https://www.googleapis.com/auth/youtube https://www.googleapis.com/auth/youtube.readonly" : TBGoogleScope;
     NSMutableDictionary *fields = [@{ @"client_id": clientId, @"scope": scope } mutableCopy];
     NSDictionary *headers = nil;
     if (!customClient) {

@@ -48,6 +48,7 @@ typedef NS_ENUM(NSInteger, TBProxyEntryKind) {
 @property (nonatomic, strong) NSMutableArray *fileOrder;        // ids of file entries, oldest first
 @property (nonatomic, strong) NSMutableArray *playlistOrder;    // ids of directory and text entries, oldest first
 @property (nonatomic) NSUInteger nextId;
+@property (nonatomic, strong) NSCache *segmentCache;
 @property (nonatomic, strong) NSMutableDictionary *servedCounts;   // content type -> @(requests)
 @property (nonatomic, strong) NSMutableDictionary *servedBytes;    // content type -> @(bytes)
 @end
@@ -148,6 +149,7 @@ static NSString *TBResponseHead(NSInteger status, NSDictionary *headers, NSStrin
 {
     self = [super init];
     if (self) {
+        self.segmentCache=[[NSCache alloc] init];self.segmentCache.totalCostLimit=6*1024*1024;self.segmentCache.countLimit=8;
         _listenFD = -1;
         _entries = [NSMutableDictionary dictionary];
         _idsByURL = [NSMutableDictionary dictionary];
@@ -585,37 +587,49 @@ static BOOL TBProxyPortAnswers(uint16_t port)
 #pragma mark - Adaptive MP4 files
 
 // A byte range of the file, fetched on this thread (YouTube's servers redirect to another host now and then)
-- (NSData *)fetchRangeOf:(NSString *)url start:(long long)start end:(long long)end error:(NSString **)error
+- (NSData *)fetchRangeOf:(NSString *)url start:(long long)start end:(long long)end headers:(NSDictionary *)headers allowShort:(BOOL)allowShort error:(NSString **)error
 {
-    NSURL *current = [NSURL URLWithString:url];
-    for (int hop = 0; hop < TBProxyMaxRedirects && current; hop++) {
-        TBHTTPRequest *r = [[TBHTTPRequest alloc] initWithMethod:@"GET" URL:current];
-        r.headers = @{ @"Accept": @"*/*", @"Range": [NSString stringWithFormat:@"bytes=%lld-%lld", start, end] };
-        r.verifyTLS = [TBSettings verifyTLS];
-        r.highPriority = YES;
-        r.noCompression = YES;
-        r.connectTimeout = 15;
-        r.readTimeout = 30;
-        __block NSError *failure = nil;
-        r.onComplete = ^(NSError *e) { failure = e; };
+    if (start<0 || end<start || end-start>=64LL*1024*1024) { if(error)*error=@"invalid byte range";return nil; }
+    long long wanted=end-start+1;
+    NSURL *current=[NSURL URLWithString:url];
+    for (int hop=0;hop<TBProxyMaxRedirects && current;hop++) {
+        TBHTTPRequest *r=[[TBHTTPRequest alloc] initWithMethod:@"GET" URL:current];
+        NSMutableDictionary *requestHeaders=[headers mutableCopy] ?: [NSMutableDictionary dictionary];
+        requestHeaders[@"Accept"]=@"*/*";requestHeaders[@"Range"]=[NSString stringWithFormat:@"bytes=%lld-%lld",start,end];
+        r.headers=requestHeaders;r.verifyTLS=[TBSettings verifyTLS];r.highPriority=YES;r.noCompression=YES;r.connectTimeout=15;r.readTimeout=30;
+        __block NSError *failure=nil;__block BOOL prefixComplete=NO,ignoredRange=NO,tooLarge=NO;
+        NSMutableData *body=[NSMutableData data];__weak TBHTTPRequest *weakRequest=r;
+        r.onHeaders=^(NSInteger status,NSDictionary *responseHeaders) {
+            if (status==200 && start>0) { ignoredRange=YES;[weakRequest cancel]; }
+        };
+        r.onData=^(NSData *data) {
+            if (weakRequest.statusCode>=300) return;
+            NSUInteger remaining=(NSUInteger)MAX(0,wanted-(long long)body.length);
+            [body appendData:data.length<=remaining ? data : [data subdataWithRange:NSMakeRange(0,remaining)]];
+            if (data.length>remaining) {
+                if (weakRequest.statusCode==200 && start==0) prefixComplete=YES;else tooLarge=YES;
+                [weakRequest cancel];
+            }
+        };
+        r.onComplete=^(NSError *e) { failure=e; };
         [r runSynchronously];
-        if (failure) { if (error) *error = failure.localizedDescription; return nil; }
-        NSInteger status = r.statusCode;
-        if (status >= 300 && status < 400 && status != 304) {
-            NSString *location = r.responseHeaders[@"location"];
-            current = location.length ? [[NSURL URLWithString:location relativeToURL:current] absoluteURL] : nil;
-            if (!current.host.length) { if (error) *error = @"redirect without a location"; return nil; }
+        if (ignoredRange) { if(error)*error=@"the media server ignored a byte range";return nil; }
+        if (tooLarge) { if(error)*error=@"the media server exceeded its byte range";return nil; }
+        if (failure && !prefixComplete) { if(error)*error=failure.localizedDescription;return nil; }
+        NSInteger status=r.statusCode;
+        if (status>=300 && status<400 && status!=304) {
+            NSString *location=r.responseHeaders[@"location"];
+            current=location.length ? [[NSURL URLWithString:location relativeToURL:current] absoluteURL] : nil;
+            if (!current.host.length) { if(error)*error=@"redirect without a location";return nil; }
             continue;
         }
-        if (status != 206 && status != 200) { if (error) *error = [NSString stringWithFormat:@"HTTP %ld", (long)status]; return nil; }
-        NSData *body = r.responseBody;
-        long long wanted = end - start + 1;
-        if (status == 200 && (long long)body.length > wanted) body = [body subdataWithRange:NSMakeRange((NSUInteger)start, (NSUInteger)wanted)];   // (a server that ignored the range)
-        if ((long long)body.length < wanted) { if (error) *error = [NSString stringWithFormat:@"short answer (%lu of %lld bytes)", (unsigned long)body.length, wanted]; return nil; }
+        if (status!=206 && status!=200) { if(error)*error=[NSString stringWithFormat:@"HTTP %ld",(long)status];return nil; }
+        if (body.length==0 || ((long long)body.length<wanted && !allowShort)) {
+            if(error)*error=[NSString stringWithFormat:@"short answer (%lu of %lld bytes)",(unsigned long)body.length,wanted];return nil;
+        }
         return body;
     }
-    if (error) *error = @"too many redirects";
-    return nil;
+    if(error)*error=@"too many redirects";return nil;
 }
 
 // The file's index, read once (a failed attempt is tried again on the next request)
@@ -624,8 +638,15 @@ static BOOL TBProxyPortAnswers(uint16_t port)
     @synchronized (entry) {
         if (entry.index) return entry.index;
         NSString *problem = nil;
-        NSData *head = [self fetchRangeOf:entry.dash.url start:0 end:entry.dash.indexEnd error:&problem];
-        TBDashIndex *index = head ? [TBDashIndex indexWithData:head format:entry.dash error:&problem] : nil;
+        TBDashIndex *index=nil;
+        long long probeEnd=entry.dash.indexEnd>0 ? entry.dash.indexEnd : 65535;
+        for (int attempt=0;attempt<3;attempt++) {
+            if (entry.dash.contentLength>0) probeEnd=MIN(probeEnd,entry.dash.contentLength-1);
+            NSData *head=[self fetchRangeOf:entry.dash.url start:0 end:probeEnd headers:entry.dash.httpHeaders allowShort:YES error:&problem];
+            index=head ? [TBDashIndex indexWithData:head format:entry.dash error:&problem] : nil;
+            if (index || !head || entry.dash.indexEnd>0 || head.length<(NSUInteger)(probeEnd+1)) break;
+            probeEnd=MIN(1048575, (probeEnd+1)*4-1);
+        }
         if (!index) {
             entry.indexError = problem ?: @"unreadable index";
             TBLog(@"Remux: the index of itag %ld could not be read: %@", (long)entry.dash.itag, entry.indexError);
@@ -654,24 +675,26 @@ static BOOL TBProxyPortAnswers(uint16_t port)
     if (!numeric || n < 0 || (NSUInteger)n >= index.fragments.count) { [self countServed:@"HTTP 404" bytes:0]; TBSendStatus(fd, 404); return; }
     TBDashFragment *fragment = index.fragments[(NSUInteger)n];
     NSTimeInterval started = [NSDate timeIntervalSinceReferenceDate];
-    NSData *raw = [self fetchRangeOf:entry.dash.url start:fragment.offset end:fragment.offset + fragment.size - 1 error:&problem];
-    if (!raw) {
-        TBLog(@"Remux: fragment %ld of itag %ld could not be fetched: %@", (long)n, (long)entry.dash.itag, problem);
-        [self countServed:@"HTTP 502" bytes:0];
-        TBSendStatus(fd, 502);
-        return;
-    }
-    NSTimeInterval fetched = [NSDate timeIntervalSinceReferenceDate];
-    NSData *converted = entry.dash.isAudio ? [index packedAudioForFragment:(NSUInteger)n data:raw error:&problem] : [index transportStreamForFragment:(NSUInteger)n data:raw error:&problem];
+    NSString *cacheKey=[NSString stringWithFormat:@"%@:%ld",entry.dash.url,(long)n];
+    NSData *converted=[self.segmentCache objectForKey:cacheKey];
+    NSUInteger rawLength=0;NSTimeInterval fetched=started;
     if (!converted) {
-        TBLog(@"Remux: fragment %ld of itag %ld could not be converted: %@", (long)n, (long)entry.dash.itag, problem);
-        [self countServed:@"HTTP 502" bytes:0];
-        TBSendStatus(fd, 502);
-        return;
+        NSData *raw=[self fetchRangeOf:entry.dash.url start:fragment.offset end:fragment.offset+fragment.size-1 headers:entry.dash.httpHeaders allowShort:NO error:&problem];
+        if (!raw) {
+            TBLog(@"Remux: fragment %ld of itag %ld could not be fetched: %@",(long)n,(long)entry.dash.itag,problem);
+            [self countServed:@"HTTP 502" bytes:0];TBSendStatus(fd,502);return;
+        }
+        rawLength=raw.length;fetched=[NSDate timeIntervalSinceReferenceDate];
+        converted=entry.dash.isAudio ? [index packedAudioForFragment:(NSUInteger)n data:raw error:&problem] : [index transportStreamForFragment:(NSUInteger)n data:raw error:&problem];
+        if (!converted) {
+            TBLog(@"Remux: fragment %ld of itag %ld could not be converted: %@",(long)n,(long)entry.dash.itag,problem);
+            [self countServed:@"HTTP 502" bytes:0];TBSendStatus(fd,502);return;
+        }
+        [self.segmentCache setObject:converted forKey:cacheKey cost:converted.length];
     }
     NSString *type = entry.dash.isAudio ? @"audio/aac" : @"video/MP2T";
     if (self.logRequests) {
-        TBLog(@"Remux %@ fragment %ld: %lu -> %lu bytes, fetch %.2f s, convert %.2f s", label, (long)n, (unsigned long)raw.length, (unsigned long)converted.length,
+        TBLog(@"Remux %@ fragment %ld: %lu -> %lu bytes, fetch %.2f s, convert %.2f s", label, (long)n, (unsigned long)rawLength, (unsigned long)converted.length,
               fetched - started, [NSDate timeIntervalSinceReferenceDate] - fetched);
     }
     [self countServed:type bytes:0];

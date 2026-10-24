@@ -25,7 +25,7 @@ Tubie_FILES := $(wildcard src/*.m) $(wildcard src/*/*.m) \
                   vendor/mbedtls_glue.c \
                   $(wildcard vendor/mbedtls/library/*.c)
 
-Tubie_FRAMEWORKS := UIKit Foundation CoreGraphics QuartzCore CoreText Security ImageIO AVFoundation CoreMedia MediaPlayer AudioToolbox
+Tubie_FRAMEWORKS := UIKit Foundation CoreGraphics QuartzCore CoreText Security ImageIO AVFoundation CoreMedia CoreVideo MediaPlayer AudioToolbox
 
 # Flags for every C-family file (also the vendored mbedTLS sources)
 Tubie_CFLAGS := -Isrc -Isrc/Net -Isrc/YouTube -Isrc/UI -Isrc/Util \
