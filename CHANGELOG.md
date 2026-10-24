@@ -2,7 +2,7 @@
 
 ## 0.5.1 (2026-10-24)
 
-- Studio adds country, device, operating-system, traffic-source, subscription, content-type and playback-location reports, loaded on demand through the existing sign-in.
+- Studio adds country, device, operating-system, traffic-source, content-type and playback-location reports, loaded on demand through the existing sign-in.
 - Compare matching available days with the previous period; unavailable data and zero percentage baselines remain explicit.
 - Open per-video analytics from top videos. Add shares and average view percentage.
 - Switch the daily graph between views, watch minutes and net subscribers; tap a bar for exact daily figures.

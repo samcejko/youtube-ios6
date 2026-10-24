@@ -356,3 +356,6 @@
 "Watch video" = "Přehrát video";
 "YouTube does not allow this report for the current sign-in." = "YouTube tento přehled pro stávající přihlášení nepovoluje.";
 "YouTube search" = "Hledání na YouTube";
+
+"YouTube could not load this report. Try again later." = "YouTube tento přehled nenačetl. Zkus to později.";
+"%+.1f pp" = "%+.1f p. b.";

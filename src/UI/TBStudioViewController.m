@@ -65,7 +65,7 @@ static double ChartValue(NSDictionary *row,NSInteger metric){if(metric==1)return
 - (void)dealloc { [_task cancel];[[NSNotificationCenter defaultCenter] removeObserver:self]; }
 - (void)accountChanged {[self reload];}
 - (void)chartChanged:(UISegmentedControl *)sender {self.chartMetric=sender.selectedSegmentIndex;[self.tableView reloadData];}
-- (NSArray *)reportTitles {return @[L(@"Countries"),L(@"Devices"),L(@"Operating systems"),L(@"Traffic sources"),L(@"Subscribed and other viewers"),L(@"Videos, Shorts and live"),L(@"Playback locations")];}
+- (NSArray *)reportTitles {return @[L(@"Countries"),L(@"Devices"),L(@"Operating systems"),L(@"Traffic sources"),L(@"Videos, Shorts and live"),L(@"Playback locations")];}
 - (void)openComparison {if(![TBStudioReports comparisonRows:self.dashboard].count){[TBUtils alertWithTitle:L(@"Compare periods") message:self.dashboard[@"previousSummaryError"] ?: L(@"No report data available.")];return;}[self.navigationController pushViewController:[[TBStudioReportViewController alloc] initWithComparison:self.dashboard] animated:YES];}
 - (void)viewDidLoad {
     [super viewDidLoad];[[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(accountChanged) name:TBAccountDidChangeNotification object:nil];

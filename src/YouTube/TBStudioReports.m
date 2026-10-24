@@ -16,17 +16,11 @@ static NSDate *Shift(NSDate *date,NSInteger days){NSCalendar *c=[[NSCalendar all
         if(valid && record.count)[rows addObject:record];
     }return rows;
 }
-+ (NSArray *)dimensions {return @[@"country",@"deviceType",@"operatingSystem",@"insightTrafficSourceType",@"subscribedStatus",@"creatorContentType",@"insightPlaybackLocationType"];}
++ (NSArray *)dimensions {return @[@"country",@"deviceType",@"operatingSystem",@"insightTrafficSourceType",@"creatorContentType",@"insightPlaybackLocationType"];}
 + (NSDictionary *)queryForDimension:(NSString *)dimension days:(NSInteger)days video:(NSString *)videoId now:(NSDate *)now {
     if(![[self dimensions] containsObject:dimension])return nil;if(days!=7 && days!=28 && days!=90)days=28;
     if(videoId.length && (videoId.length!=11 || [videoId rangeOfCharacterFromSet:[[NSCharacterSet characterSetWithCharactersInString:@"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789_-"] invertedSet]].location!=NSNotFound))return nil;
     NSDateFormatter *f=Format();NSDate *today=now ?: [NSDate date];NSMutableDictionary *q=[@{@"ids":@"channel==MINE",@"startDate":[f stringFromDate:Shift(today,1-days)],@"endDate":[f stringFromDate:today],@"dimensions":dimension,@"metrics":@"views,estimatedMinutesWatched",@"sort":@"-views",@"maxResults":@"25"} mutableCopy];if(videoId.length)q[@"filters"]=[@"video==" stringByAppendingString:videoId];return q;
-}
-+ (NSArray *)queriesForDimension:(NSString *)dimension days:(NSInteger)days video:(NSString *)videoId now:(NSDate *)now {
-    NSDictionary *base=[self queryForDimension:dimension days:days video:videoId now:now];if(!base)return @[];
-    if(![dimension isEqualToString:@"subscribedStatus"])return @[base];
-    // Filtered aggregates avoid a server error returned by some channels for the grouped report.
-    NSMutableArray *queries=[NSMutableArray array];for(NSString *status in @[@"SUBSCRIBED",@"UNSUBSCRIBED"]){NSMutableDictionary *q=[base mutableCopy];[q removeObjectsForKeys:@[@"dimensions",@"sort",@"maxResults"]];NSString *filter=[@"subscribedStatus==" stringByAppendingString:status];q[@"filters"]=q[@"filters"]?[q[@"filters"] stringByAppendingFormat:@";%@",filter]:filter;[queries addObject:@{@"query":q,@"status":status}];}return queries;
 }
 + (NSDictionary *)previousQueryForDashboard:(NSDictionary *)dashboard {
     NSArray *daily=[dashboard[@"daily"] isKindOfClass:[NSArray class]]?dashboard[@"daily"]:nil;NSString *last=nil;
@@ -38,7 +32,7 @@ static NSDate *Shift(NSDate *date,NSInteger days){NSCalendar *c=[[NSCalendar all
 + (NSArray *)comparisonRows:(NSDictionary *)dashboard {
     NSArray *a=[dashboard[@"summary"] isKindOfClass:[NSArray class]]?dashboard[@"summary"]:nil,*b=[dashboard[@"previousSummary"] isKindOfClass:[NSArray class]]?dashboard[@"previousSummary"]:nil;
     NSDictionary *current=[a.firstObject isKindOfClass:[NSDictionary class]]?a.firstObject:nil,*previous=[b.firstObject isKindOfClass:[NSDictionary class]]?b.firstObject:nil;NSMutableArray *result=[NSMutableArray array];
-    for(NSString *key in @[@"views",@"estimatedMinutesWatched",@"averageViewDuration",@"averageViewPercentage",@"likes",@"comments",@"shares",@"subscribersGained",@"subscribersLost"]){NSNumber *now=[self number:current[key]],*old=[self number:previous[key]];if(!now || !old)continue;NSMutableDictionary *row=[@{@"metric":key,@"current":now,@"previous":old,@"change":@(now.doubleValue-old.doubleValue)} mutableCopy];if(old.doubleValue!=0)row[@"percentage"]=@((now.doubleValue-old.doubleValue)/fabs(old.doubleValue)*100);[result addObject:row];}return result;
+    for(NSString *key in @[@"views",@"estimatedMinutesWatched",@"averageViewDuration",@"averageViewPercentage",@"likes",@"comments",@"shares",@"subscribersGained",@"subscribersLost"]){NSNumber *now=[self number:current[key]],*old=[self number:previous[key]];if(!now || !old)continue;NSMutableDictionary *row=[@{@"metric":key,@"current":now,@"previous":old,@"change":@(now.doubleValue-old.doubleValue)} mutableCopy];if(old.doubleValue!=0){double percentage=(now.doubleValue-old.doubleValue)/fabs(old.doubleValue)*100;if(isfinite(percentage))row[@"percentage"]=@(percentage);}[result addObject:row];}return result;
 }
 + (NSString *)CSVForRows:(NSArray *)rows columns:(NSArray *)columns {
     NSMutableArray *lines=[NSMutableArray array];NSMutableArray *all=[NSMutableArray arrayWithObject:columns];for(NSDictionary *row in rows){NSMutableArray *values=[NSMutableArray array];for(NSString *key in columns)[values addObject:row[key] ?: @""];[all addObject:values];}
