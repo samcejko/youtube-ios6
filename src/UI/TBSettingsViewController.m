@@ -126,7 +126,7 @@ typedef NS_ENUM(NSInteger, TBSettingsSection) {
 
 - (UISwitch *)switchOn:(BOOL)on tag:(NSInteger)tag
 {
-    UISwitch *sw = [[UISwitch alloc] initWithFrame:CGRectZero];
+    UISwitch *sw = RetroMakeSwitch();
     sw.on = on;
     sw.tag = tag;
     [sw addTarget:self action:@selector(switchChanged:) forControlEvents:UIControlEventValueChanged];
@@ -181,6 +181,12 @@ typedef NS_ENUM(NSInteger, TBSettingsSection) {
     }
 }
 
+- (UIView *)tableView:(UITableView *)tableView viewForHeaderInSection:(NSInteger)section {
+    UIView *view=RetroSectionHeader([self tableView:tableView titleForHeaderInSection:section],tableView.bounds.size.width);
+    if([TBTheme shared].isDark)for(UILabel *label in view.subviews){label.textColor=[[TBTheme shared] secondaryTextColor];label.shadowColor=[UIColor blackColor];}
+    return view;
+}
+- (CGFloat)tableView:(UITableView *)tableView heightForHeaderInSection:(NSInteger)section { return 32; }
 - (NSString *)tableView:(UITableView *)tableView titleForHeaderInSection:(NSInteger)section
 {
     switch ((TBSettingsSection)section) {
@@ -374,7 +380,7 @@ typedef NS_ENUM(NSInteger, TBSettingsSection) {
 
 - (void)askForClientSecret
 {
-    UIAlertView *alert = [[UIAlertView alloc] initWithTitle:L(@"Google client secret") message:L(@"Paste the client secret (GOCSPX-…). Leave empty for the built-in one.") delegate:self
+    UIAlertView *alert = [[RetroAlertView alloc] initWithTitle:L(@"Google client secret") message:L(@"Paste the client secret (GOCSPX-…). Leave empty for the built-in one.") delegate:self
                                           cancelButtonTitle:L(@"Cancel") otherButtonTitles:L(@"OK"), nil];
     alert.alertViewStyle = UIAlertViewStylePlainTextInput;
     UITextField *field = [alert textFieldAtIndex:0];
@@ -388,7 +394,7 @@ typedef NS_ENUM(NSInteger, TBSettingsSection) {
 
 - (void)askForClientId
 {
-    UIAlertView *alert = [[UIAlertView alloc] initWithTitle:L(@"Google client ID") message:L(@"Paste the client ID (…apps.googleusercontent.com). Leave empty for the built-in one.") delegate:self
+    UIAlertView *alert = [[RetroAlertView alloc] initWithTitle:L(@"Google client ID") message:L(@"Paste the client ID (…apps.googleusercontent.com). Leave empty for the built-in one.") delegate:self
                                           cancelButtonTitle:L(@"Cancel") otherButtonTitles:L(@"OK"), nil];
     alert.alertViewStyle = UIAlertViewStylePlainTextInput;
     UITextField *field = [alert textFieldAtIndex:0];
@@ -466,7 +472,7 @@ typedef NS_ENUM(NSInteger, TBSettingsSection) {
         TBAccount *account = [TBAccount shared];
         if (account.isSignedIn) {
             if (row == 1) {
-                UIAlertView *alert = [[UIAlertView alloc] initWithTitle:L(@"Sign out of the Google account?") message:nil delegate:self
+                UIAlertView *alert = [[RetroAlertView alloc] initWithTitle:L(@"Sign out of the Google account?") message:nil delegate:self
                                                       cancelButtonTitle:L(@"Cancel") otherButtonTitles:L(@"Sign out"), nil];
                 alert.tag = 72;
                 [alert show];

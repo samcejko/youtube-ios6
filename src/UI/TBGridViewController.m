@@ -553,7 +553,7 @@ static NSString * const kFooterId = @"footer";
     id item = ip ? [self itemAt:ip] : nil;
     if (!item) return;
     self.pressedItem = item;
-    UIActionSheet *sheet = [[UIActionSheet alloc] initWithTitle:nil delegate:self cancelButtonTitle:L(@"Cancel") destructiveButtonTitle:L(@"Remove") otherButtonTitles:nil];
+    UIActionSheet *sheet = [[RetroActionSheet alloc] initWithTitle:nil delegate:self cancelButtonTitle:L(@"Cancel") destructiveButtonTitle:L(@"Remove") otherButtonTitles:nil];
     UICollectionViewCell *cell = [self.collectionView cellForItemAtIndexPath:ip];
     if (TBIsPad() && cell) [sheet showFromRect:cell.bounds inView:cell animated:YES];
     else [sheet showInView:self.view];

@@ -183,7 +183,7 @@
 
 - (void)composeTapped
 {
-    UIAlertView *alert = [[UIAlertView alloc] initWithTitle:(self.replyParentId.length ? L(@"Reply") : L(@"Add a comment"))
+    UIAlertView *alert = [[RetroAlertView alloc] initWithTitle:(self.replyParentId.length ? L(@"Reply") : L(@"Add a comment"))
                                                    message:nil delegate:self cancelButtonTitle:L(@"Cancel") otherButtonTitles:L(@"Post"), nil];
     alert.alertViewStyle = UIAlertViewStylePlainTextInput;
     alert.tag = 90;

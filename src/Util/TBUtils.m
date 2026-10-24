@@ -360,7 +360,7 @@ static BOOL TBCodePointHasNoGlyph(UTF32Char c)
 + (void)alertWithTitle:(NSString *)title message:(NSString *)message
 {
     TBMain(^{
-        UIAlertView *alert = [[UIAlertView alloc] initWithTitle:title message:message delegate:nil cancelButtonTitle:L(@"OK") otherButtonTitles:nil];
+        UIAlertView *alert = [[RetroAlertView alloc] initWithTitle:title message:message delegate:nil cancelButtonTitle:L(@"OK") otherButtonTitles:nil];
         [alert show];
     });
 }

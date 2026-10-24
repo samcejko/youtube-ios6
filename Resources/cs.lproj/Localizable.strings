@@ -262,3 +262,35 @@
 "%@ likes" = "%@ označení Líbí se mi";
 
 "Hearted by creator" = "Autor označil srdíčkem";
+
+// Studio and playback recovery
+"Studio" = "Studio";
+"Your channel" = "Tvůj kanál";
+"Selected period" = "Vybrané období";
+"Daily views" = "Denní zhlédnutí";
+"Top videos" = "Nejsledovanější videa";
+"7 days" = "7 dní";
+"28 days" = "28 dní";
+"90 days" = "90 dní";
+"Subscribers" = "Odběratelé";
+"Hidden" = "Skryto";
+"Total views" = "Celkem zhlédnutí";
+"Views" = "Zhlédnutí";
+"Watch time" = "Doba sledování";
+"Average view duration" = "Průměrná doba zhlédnutí";
+"Subscribers gained / lost" = "Získaní / ztracení odběratelé";
+"%@ minutes" = "%@ minut";
+"Account settings" = "Nastavení účtu";
+"No report data available." = "Pro toto období nejsou dostupná data.";
+"Loading…" = "Načítání…";
+"Reports can be delayed. Dates follow YouTube's reporting time zone." = "Přehledy mohou mít zpoždění. Data používají časové pásmo přehledů YouTube.";
+"Studio reads your channel and reports. Analytics requires access granted by your Google account and an enabled YouTube Analytics API." = "Studio čte tvůj kanál a jeho přehledy. Statistiky vyžadují oprávnění účtu Google a zapnuté YouTube Analytics API.";
+"Your Google sign-in has expired. Sign in again in Account settings." = "Přihlášení ke Googlu vypršelo. Přihlas se znovu v nastavení účtu.";
+"Enable YouTube Analytics API in the Google Cloud project used for this sign-in." = "V projektu Google Cloud použitém pro přihlášení zapni YouTube Analytics API.";
+"Enable YouTube Data API v3 in the Google Cloud project used for this sign-in." = "V projektu Google Cloud použitém pro přihlášení zapni YouTube Data API v3.";
+"This sign-in cannot read channel analytics. Connect a Google client authorized for YouTube Analytics." = "Toto přihlášení nemá přístup ke statistikám kanálu. Připoj klienta Google s oprávněním číst YouTube Analytics.";
+"This sign-in cannot read your channel. Check the Google client's YouTube access." = "Toto přihlášení nemůže číst tvůj kanál. Zkontroluj přístup klienta Google k YouTube.";
+"The report could not be loaded. Try again." = "Přehled se nepodařilo načíst. Zkus to znovu.";
+"Sign in with Google to see your channel and reports." = "Pro zobrazení kanálu a statistik se přihlas přes Google.";
+"This Google account has no YouTube channel." = "Tento účet Google nemá kanál na YouTube.";
+"YouTube requires playback verification. Signing into the account does not always clear this check." = "YouTube vyžaduje ověření přehrávání. Samotné přihlášení účtu nemusí tuto kontrolu odstranit.";

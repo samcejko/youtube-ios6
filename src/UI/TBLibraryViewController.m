@@ -1,4 +1,5 @@
 #import "TBLibraryViewController.h"
+#import "TBStudioViewController.h"
 #import "TBGridViewController.h"
 #import "TBSettingsViewController.h"
 #import "TBLibrary.h"
@@ -55,7 +56,7 @@
 - (NSInteger)tableView:(UITableView *)tableView numberOfRowsInSection:(NSInteger)section
 {
     // (with the account signed in: its liked videos and playlists as well)
-    return section == 0 ? ([[TBAccount shared] isSignedIn] ? 5 : 3) : 1;
+    return section == 0 ? ([[TBAccount shared] isSignedIn] ? 5 : 3) : 2;
 }
 
 - (UITableViewCell *)tableView:(UITableView *)tableView cellForRowAtIndexPath:(NSIndexPath *)indexPath
@@ -66,7 +67,7 @@
     cell.accessoryType = UITableViewCellAccessoryDisclosureIndicator;
     TBLibrary *library = [TBLibrary shared];
     if (indexPath.section == 1) {
-        cell.textLabel.text = L(@"Settings");
+        cell.textLabel.text = indexPath.row==0 ? L(@"Studio") : L(@"Settings");
         return cell;
     }
     switch (indexPath.row) {
@@ -83,7 +84,8 @@
 {
     [tableView deselectRowAtIndexPath:indexPath animated:YES];
     if (indexPath.section == 1) {
-        [self.navigationController pushViewController:[[TBSettingsViewController alloc] init] animated:YES];
+        UIViewController *controller=indexPath.row==0 ? [[TBStudioViewController alloc] init] : [[TBSettingsViewController alloc] init];
+        [self.navigationController pushViewController:controller animated:YES];
         return;
     }
     TBLibrary *library = [TBLibrary shared];

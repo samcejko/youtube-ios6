@@ -28,6 +28,25 @@
     if (status==403) return analytics ? L(@"This sign-in cannot read channel analytics. Connect a Google client authorized for YouTube Analytics.") : L(@"This sign-in cannot read your channel. Check the Google client's YouTube access.");
     return TBStr(error[@"message"]) ?: L(@"The report could not be loaded. Try again.");
 }
++ (void)completeDashboard:(NSMutableDictionary *)result token:(NSString *)token outer:(TBHTTPTask *)outer children:(NSMutableArray *)children completion:(void (^)(NSDictionary *))completion
+{
+    NSMutableArray *ids=[NSMutableArray array];
+    NSCharacterSet *invalid=[[NSCharacterSet characterSetWithCharactersInString:@"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789_-"] invertedSet];
+    for (NSDictionary *row in TBArr(result[@"topVideos"])) {
+        NSString *video=TBStr(row[@"video"]);
+        if(video.length==11 && [video rangeOfCharacterFromSet:invalid].location==NSNotFound)[ids addObject:video];
+    }
+    void (^finish)(void)=^{ if(outer.isCancelled)return;outer.cancelBlock=nil;@synchronized(children){[children removeAllObjects];}completion(result); };
+    if(!ids.count){finish();return;}
+    NSString *url=[@"https://www.googleapis.com/youtube/v3/videos?part=snippet&id=" stringByAppendingString:[TBUtils urlEncode:[ids componentsJoinedByString:@","]]];
+    TBHTTPTask *task=[TBHTTP getJSON:url headers:@{@"Authorization":[@"Bearer " stringByAppendingString:token]} completion:^(id json,NSInteger status,NSError *error){
+        if(outer.isCancelled)return;
+        NSMutableDictionary *titles=[NSMutableDictionary dictionary];
+        for(NSDictionary *item in TBArr(TBDict(json)[@"items"])) { NSString *identifier=TBStr(item[@"id"]),*title=TBStr(TBDict(item[@"snippet"])[@"title"]);if(identifier.length && title.length)titles[identifier]=title; }
+        result[@"videoTitles"]=titles;finish();
+    }];
+    @synchronized(children){[children addObject:task];}
+}
 + (TBHTTPTask *)dashboardForDays:(NSInteger)days completion:(void (^)(NSDictionary *))completion
 {
     if (days!=7 && days!=28 && days!=90) days=28;
@@ -67,12 +86,12 @@
                     NSDictionary *channel=TBDict([TBArr(TBDict(json)[@"items"]) firstObject]);
                     if (channel) result[key]=channel;else result[@"channelError"]=L(@"This Google account has no YouTube channel.");
                 } else result[key]=[self recordsFromReport:json];
-                if (--pending==0) { outer.cancelBlock=nil;@synchronized(children){[children removeAllObjects];}completion(result); }
+                if (--pending==0) [self completeDashboard:result token:token outer:outer children:children completion:completion];
             }];
             @synchronized(children){[children addObject:task];}
         }
     }];
-    @synchronized(children){[children addObject:auth];}
+    if(auth)@synchronized(children){[children addObject:auth];}
     return outer;
 }
 @end

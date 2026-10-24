@@ -186,7 +186,7 @@ static NSInteger TBMajorIOSVersion(void)
     [g_live addObject:open];
 
     NSMutableArray *actions = [NSMutableArray array];
-    UIActionSheet *sheet = [[UIActionSheet alloc] initWithTitle:url.absoluteString delegate:open cancelButtonTitle:nil destructiveButtonTitle:nil otherButtonTitles:nil];
+    UIActionSheet *sheet = [[RetroActionSheet alloc] initWithTitle:url.absoluteString delegate:open cancelButtonTitle:nil destructiveButtonTitle:nil otherButtonTitles:nil];
     if (copy) { [sheet addButtonWithTitle:L(@"Copy link")]; [actions addObject:TBActionCopy]; }
     if (sister) { [sheet addButtonWithTitle:sister.buttonTitle]; [actions addObject:TBActionSister]; }
     [sheet addButtonWithTitle:L(@"Open in Safari")];

@@ -14,6 +14,7 @@
 #import "MusicHandoff.h"
 #import "TBAccount.h"
 #import "TBStudio.h"
+#import "TBStudioViewController.h"
 #import "TBFrameProbe.h"
 #import <AVFoundation/AVFoundation.h>
 #include <dlfcn.h>
@@ -197,8 +198,29 @@ static NSUInteger TBHandoffGeneration;
     if ([target isEqualToString:@"open"] && [params[@"url"] length]) {
         return [TBNavigator openURL:[NSURL URLWithString:params[@"url"]] from:self.rootViewController];
     }
+    if ([target isEqualToString:@"studio"]) {
+        [self.rootViewController selectTab:4];
+        UIViewController *selected=self.rootViewController.selectedViewController;
+        if([selected isKindOfClass:[UINavigationController class]]) { UINavigationController *nav=(UINavigationController *)selected;[nav popToRootViewControllerAnimated:NO];[nav pushViewController:[[TBStudioViewController alloc] init] animated:NO]; }
+        return YES;
+    }
     BOOL debug = [[NSFileManager defaultManager] fileExistsAtPath:[[TBUtils documentsPath] stringByAppendingPathComponent:@"debug"]];
     if (!debug) return YES;
+    if ([target isEqualToString:@"rotate"]) {
+        BOOL landscape=![params[@"landscape"] isEqualToString:@"0"];
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wunguarded-availability"
+#if __IPHONE_OS_VERSION_MAX_ALLOWED >= 160000
+        if([UIDevice currentDevice].systemVersion.integerValue>=16) {
+            UIWindowScene *scene=self.window.windowScene;
+            UIWindowSceneGeometryPreferencesIOS *preferences=[[UIWindowSceneGeometryPreferencesIOS alloc] initWithInterfaceOrientations:landscape?UIInterfaceOrientationMaskLandscapeRight:UIInterfaceOrientationMaskPortrait];
+            [scene requestGeometryUpdateWithPreferences:preferences errorHandler:^(NSError *error){TBLog(@"Device rotation check: %@",error.localizedDescription);}];
+        } else
+#endif
+        { @try { [[UIDevice currentDevice] setValue:@(landscape?UIInterfaceOrientationLandscapeRight:UIInterfaceOrientationPortrait) forKey:@"orientation"];[UIViewController attemptRotationToDeviceOrientation]; } @catch(NSException *exception){TBLog(@"Device rotation check: %@",exception.reason);} }
+#pragma clang diagnostic pop
+        return YES;
+    }
     if ([target isEqualToString:@"studioprobe"]) {
         [@"{\"running\":true}" writeToFile:[NSTemporaryDirectory() stringByAppendingPathComponent:@"studio-probe.json"] atomically:YES encoding:NSUTF8StringEncoding error:NULL];
         [TBStudio dashboardForDays:28 completion:^(NSDictionary *result) {
@@ -295,7 +317,10 @@ static NSUInteger TBHandoffGeneration;
         BOOL pressed = NO;
         for (NSUInteger i = 0; i < views.count && !pressed; i++) {
             UIView *v = views[i];
-            if (!byTitle.length && [v isKindOfClass:[UIAlertView class]] && ((UIAlertView *)v).visible) {
+            BOOL classicButton=NO;
+            if(!byTitle.length && [v isKindOfClass:[UIButton class]] && v.tag==n)for(UIView *ancestor=v.superview;ancestor;ancestor=ancestor.superview)if([ancestor.accessibilityIdentifier isEqualToString:@"TubieClassicPopup"]){classicButton=YES;break;}
+            if(classicButton){[(UIButton *)v sendActionsForControlEvents:UIControlEventTouchUpInside];pressed=YES;}
+            else if (!byTitle.length && [v isKindOfClass:[UIAlertView class]] && ((UIAlertView *)v).visible) {
                 UIAlertView *alert = (UIAlertView *)v;
                 if ([alert.delegate respondsToSelector:@selector(alertView:clickedButtonAtIndex:)]) [alert.delegate alertView:alert clickedButtonAtIndex:n];
                 [alert dismissWithClickedButtonIndex:n animated:NO];

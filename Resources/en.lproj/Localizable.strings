@@ -5,3 +5,35 @@
 "%@ likes" = "%@ likes";
 
 "Hearted by creator" = "Hearted by creator";
+
+// Studio and playback recovery
+"Studio" = "Studio";
+"Your channel" = "Your channel";
+"Selected period" = "Selected period";
+"Daily views" = "Daily views";
+"Top videos" = "Top videos";
+"7 days" = "7 days";
+"28 days" = "28 days";
+"90 days" = "90 days";
+"Subscribers" = "Subscribers";
+"Hidden" = "Hidden";
+"Total views" = "Total views";
+"Views" = "Views";
+"Watch time" = "Watch time";
+"Average view duration" = "Average view duration";
+"Subscribers gained / lost" = "Subscribers gained / lost";
+"%@ minutes" = "%@ minutes";
+"Account settings" = "Account settings";
+"No report data available." = "No report data available.";
+"Loading…" = "Loading…";
+"Reports can be delayed. Dates follow YouTube's reporting time zone." = "Reports can be delayed. Dates follow YouTube's reporting time zone.";
+"Studio reads your channel and reports. Analytics requires access granted by your Google account and an enabled YouTube Analytics API." = "Studio reads your channel and reports. Analytics requires access granted by your Google account and an enabled YouTube Analytics API.";
+"Your Google sign-in has expired. Sign in again in Account settings." = "Your Google sign-in has expired. Sign in again in Account settings.";
+"Enable YouTube Analytics API in the Google Cloud project used for this sign-in." = "Enable YouTube Analytics API in the Google Cloud project used for this sign-in.";
+"Enable YouTube Data API v3 in the Google Cloud project used for this sign-in." = "Enable YouTube Data API v3 in the Google Cloud project used for this sign-in.";
+"This sign-in cannot read channel analytics. Connect a Google client authorized for YouTube Analytics." = "This sign-in cannot read channel analytics. Connect a Google client authorized for YouTube Analytics.";
+"This sign-in cannot read your channel. Check the Google client's YouTube access." = "This sign-in cannot read your channel. Check the Google client's YouTube access.";
+"The report could not be loaded. Try again." = "The report could not be loaded. Try again.";
+"Sign in with Google to see your channel and reports." = "Sign in with Google to see your channel and reports.";
+"This Google account has no YouTube channel." = "This Google account has no YouTube channel.";
+"YouTube requires playback verification. Signing into the account does not always clear this check." = "YouTube requires playback verification. Signing into the account does not always clear this check.";

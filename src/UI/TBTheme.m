@@ -1,4 +1,5 @@
 #import "TBTheme.h"
+#import "RetroUIKit.h"
 #import "TBSettings.h"
 #import "TBUtils.h"
 #import "TBModern.h"
@@ -760,7 +761,7 @@ static UIImage *TBDrawImage(CGSize size, void (^draw)(CGContextRef ctx))
 {
     tableView.backgroundView = nil;
     // (grouped, or the inset grouped style iOS 13+ shows grouped tables in)
-    tableView.backgroundColor = tableView.style != UITableViewStylePlain ? [self backgroundColor] : [self cardColor];
+    tableView.backgroundColor = tableView.style != UITableViewStylePlain ? ((!self.dark && TBModernIOS()) ? RetroGroupedBackground() : [self backgroundColor]) : [self cardColor];
     tableView.separatorColor = [self separatorColor];
     tableView.indicatorStyle = self.dark ? UIScrollViewIndicatorStyleWhite : UIScrollViewIndicatorStyleDefault;
     TBModernSetTableViewDark(tableView, [self isDark]);

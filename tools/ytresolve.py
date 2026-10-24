@@ -132,20 +132,22 @@ def resolve(ref):
     with _LOCK, _ydl() as ydl:
         info = ydl.extract_info(url, download=False)
     fmts = info.get("formats") or []
-    # itag -> fresh direct URL for every format served straight over https (the DASH ladder 133-137 etc. and audio
-    # 139/140), skipping HLS. The app keeps the sidx byte ranges it already has per itag and swaps in these URLs.
+    # A map itag -> fresh direct URL for every format served straight over https (the DASH ladder 133-137 etc. and
+    # the audio 139/140), skipping HLS. Tubie keeps the sidx byte ranges it already got from its own InnerTube for
+    # each itag and just swaps in these URLs, so the proxy can remux the whole video (no 60 s PO-token wall).
     formats = {}
     audio_pick = {}   # base itag -> (score, url): for dubbed videos keep only the original/default track
     for f in fmts:
         u = f.get("url")
         if not u or (f.get("protocol") or "") not in ("https", "http"):
-            continue
+            continue   # skip m3u8/HLS; we want the directly-ranged files
         fid = str(f.get("format_id") or "")
         base = fid.split("-")[0]   # multi-language audio comes as "140-0".."140-19"
         if not base.isdigit():
             continue
         is_audio = f.get("acodec") not in (None, "none") and f.get("vcodec") in (None, "none")
         if is_audio and "-" in fid:
+            # the app's sidx ranges are for the ORIGINAL audio, so pick the track yt-dlp marks default/original
             score = f.get("language_preference") or -1
             note = (f.get("format_note") or "").lower()
             if "default" in note or "original" in note:
@@ -156,6 +158,29 @@ def resolve(ref):
             formats[base] = u
     for base, (score, u) in audio_pick.items():
         formats.setdefault(base, u)
+    selected = []
+    for f in fmts:
+        fid = str(f.get("format_id") or "").split("-")[0]
+        u = f.get("url")
+        if not fid.isdigit() or not u or formats.get(fid) != u:
+            continue
+        video, audio = f.get("vcodec") or "", f.get("acodec") or ""
+        if video.startswith(("avc1", "avc3")) and audio != "none":
+            continue
+        codec = video if video.startswith(("avc1", "avc3")) else audio
+        if not (codec.startswith(("avc1", "avc3")) or (video == "none" and codec.startswith("mp4a.40.2"))):
+            continue
+        media_headers = {k: v for k, v in _headers(info, f).items()
+                         if k.lower() in ("user-agent", "referer", "origin", "accept-language")}
+        selected.append({
+            "itag": int(fid), "url": u, "codecs": codec,
+            "width": f.get("width") or 0, "height": f.get("height") or 0,
+            "fps": f.get("fps") or 0, "bitrate": int((f.get("tbr") or f.get("abr") or 0) * 1000),
+            "contentLength": f.get("filesize") or 0,
+            "audioSampleRate": f.get("asr") or 0, "audioChannels": f.get("audio_channels") or 0,
+            "isDefaultAudio": "original" in (f.get("format_note") or "").lower() or (f.get("language_preference") or -1) >= 0,
+            "httpHeaders": media_headers,
+        })
     prog = _pick(fmts, "prog")
     out = {
         "id": vid,
@@ -163,6 +188,10 @@ def resolve(ref):
         "duration": info.get("duration") or 0,
         "isLive": bool(info.get("is_live")),
         "formats": formats,
+        "schemaVersion": 2,
+        "author": info.get("channel") or info.get("uploader") or "",
+        "channelId": info.get("channel_id") or "",
+        "adaptiveFormats": selected,
     }
     if prog:
         out["playUrl"] = prog.get("url")
@@ -170,6 +199,7 @@ def resolve(ref):
         out["playItag"] = str(prog.get("format_id") or "")
     CACHE.put(ckey, out, 3600)   # googlevideo URLs last ~6 h; refresh well before that
     return out
+
 
 
 class Handler(BaseHTTPRequestHandler):

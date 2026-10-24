@@ -806,7 +806,7 @@ typedef NS_ENUM(NSInteger, TBWatchSection) {
 - (void)showSpeedSheetFrom:(UIView *)anchor
 {
     if (self.source.isLive) return;
-    UIActionSheet *sheet = [[UIActionSheet alloc] initWithTitle:L(@"Speed") delegate:self cancelButtonTitle:nil destructiveButtonTitle:nil otherButtonTitles:nil];
+    UIActionSheet *sheet = [[RetroActionSheet alloc] initWithTitle:L(@"Speed") delegate:self cancelButtonTitle:nil destructiveButtonTitle:nil otherButtonTitles:nil];
     for (NSUInteger i = 0; i < TBSpeedCount; i++) {
         [sheet addButtonWithTitle:[NSString stringWithFormat:@"%g×%@", TBSpeeds[i], fabsf(TBSpeeds[i] - self.playbackRate) < 0.01f ? @" ✓" : @""]];
     }
@@ -1369,7 +1369,7 @@ typedef NS_ENUM(NSInteger, TBWatchSection) {
 {
     // (iOS 6 at another speed plays the MP4: a quality picked here means the HLS rendition again, at 1x)
     NSString *heading = self.speedMP4 ? L(@"At speeds other than 1× iOS 6 plays the 360p MP4. Picking a quality returns to 1×.") : L(@"Quality");
-    UIActionSheet *sheet = [[UIActionSheet alloc] initWithTitle:heading delegate:self cancelButtonTitle:nil destructiveButtonTitle:nil otherButtonTitles:nil];
+    UIActionSheet *sheet = [[RetroActionSheet alloc] initWithTitle:heading delegate:self cancelButtonTitle:nil destructiveButtonTitle:nil otherButtonTitles:nil];
     if (self.source.hasHLS) {
         [sheet addButtonWithTitle:[NSString stringWithFormat:@"%@%@", L(@"Auto"), (self.currentVariant || self.speedMP4) ? @"" : @" ✓"]];
         for (TBVariant *v in self.source.variants) {
@@ -1509,7 +1509,7 @@ typedef NS_ENUM(NSInteger, TBWatchSection) {
     switch (button.tag) {
         case 0: {   // like / dislike: the account rates; without one the counts are all there is
             if ([[TBAccount shared] isSignedIn]) {
-                UIActionSheet *sheet = [[UIActionSheet alloc] initWithTitle:L(@"Rating") delegate:self cancelButtonTitle:nil destructiveButtonTitle:nil otherButtonTitles:nil];
+                UIActionSheet *sheet = [[RetroActionSheet alloc] initWithTitle:L(@"Rating") delegate:self cancelButtonTitle:nil destructiveButtonTitle:nil otherButtonTitles:nil];
                 [sheet addButtonWithTitle:[NSString stringWithFormat:@"%@%@", L(@"Like"), [self.rating isEqualToString:@"like"] ? @" ✓" : @""]];
                 [sheet addButtonWithTitle:[NSString stringWithFormat:@"%@%@", L(@"Dislike"), [self.rating isEqualToString:@"dislike"] ? @" ✓" : @""]];
                 [sheet addButtonWithTitle:L(@"Remove rating")];
@@ -1540,7 +1540,7 @@ typedef NS_ENUM(NSInteger, TBWatchSection) {
         case 2: {   // captions
             NSArray *tracks = self.source.info.captionTracks;
             if (!tracks.count) { [TBUtils alertWithTitle:L(@"Captions") message:L(@"This video has no captions.")]; break; }
-            UIActionSheet *sheet = [[UIActionSheet alloc] initWithTitle:L(@"Captions") delegate:self cancelButtonTitle:nil destructiveButtonTitle:nil otherButtonTitles:nil];
+            UIActionSheet *sheet = [[RetroActionSheet alloc] initWithTitle:L(@"Captions") delegate:self cancelButtonTitle:nil destructiveButtonTitle:nil otherButtonTitles:nil];
             [sheet addButtonWithTitle:[NSString stringWithFormat:@"%@%@", L(@"Off"), self.captionTrack ? @"" : @" ✓"]];
             for (TBCaptionTrack *t in tracks) [sheet addButtonWithTitle:[NSString stringWithFormat:@"%@%@", t.name ?: t.languageCode, t == self.captionTrack ? @" ✓" : @""]];
             sheet.cancelButtonIndex = [sheet addButtonWithTitle:L(@"Cancel")];
