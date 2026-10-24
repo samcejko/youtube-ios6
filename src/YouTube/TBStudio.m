@@ -64,12 +64,22 @@
 + (TBHTTPTask *)reportForDimension:(NSString *)dimension days:(NSInteger)days video:(NSString *)videoId completion:(void (^)(NSDictionary *))completion
 {
     TBHTTPTask *outer=[[TBHTTPTask alloc] init];NSMutableArray *children=[NSMutableArray array];outer.cancelBlock=^{for(TBHTTPTask *task in children)[task cancel];[children removeAllObjects];};
-    NSDictionary *query=[TBStudioReports queryForDimension:dimension days:days video:videoId now:nil];
-    if(!query){completion(@{@"error":L(@"The report could not be loaded. Try again.")});return outer;}
-    NSMutableDictionary *result=[@{@"dimension":dimension,@"startDate":query[@"startDate"],@"endDate":query[@"endDate"]} mutableCopy];
-    TBHTTPTask *auth=[[TBAccount shared] withAccessToken:^(NSString *token,NSError *error){if(outer.isCancelled)return;if(!token.length){result[@"error"]=error.localizedDescription ?: L(@"Not signed in.");outer.cancelBlock=nil;completion(result);return;}
-        NSMutableArray *pairs=[NSMutableArray array];for(NSString *key in [[query allKeys] sortedArrayUsingSelector:@selector(compare:)])[pairs addObject:[NSString stringWithFormat:@"%@=%@",key,[TBUtils urlEncode:query[key]]]];
-        TBHTTPTask *task=[TBHTTP getJSON:[@"https://youtubeanalytics.googleapis.com/v2/reports?" stringByAppendingString:[pairs componentsJoinedByString:@"&"]] headers:@{@"Authorization":[@"Bearer " stringByAppendingString:token]} completion:^(id json,NSInteger status,NSError *failure){if(outer.isCancelled)return;if(status==200 && !failure)result[@"rows"]=[self recordsFromReport:json];else {result[@"error"]=status>0?[self errorText:TBDict(json) status:status analytics:YES]:(failure.localizedDescription ?: L(@"The report could not be loaded. Try again."));result[@"HTTP"]=@(status);}outer.cancelBlock=nil;[children removeAllObjects];completion(result);}];if(task)[children addObject:task];
+    NSArray *queries=[TBStudioReports queriesForDimension:dimension days:days video:videoId now:nil];
+    if(!queries.count){outer.cancelBlock=nil;completion(@{@"error":L(@"The report could not be loaded. Try again.")});return outer;}
+    NSDictionary *first=queries[0][@"query"] ?: queries[0];
+    NSMutableDictionary *result=[@{@"dimension":dimension,@"startDate":first[@"startDate"],@"endDate":first[@"endDate"]} mutableCopy];
+    TBHTTPTask *auth=[[TBAccount shared] withAccessToken:^(NSString *token,NSError *error){
+        if(outer.isCancelled)return;if(!token.length){result[@"error"]=error.localizedDescription ?: L(@"Not signed in.");outer.cancelBlock=nil;completion(result);return;}
+        NSMutableArray *rows=[NSMutableArray array];__block NSUInteger pending=queries.count;
+        for(NSDictionary *spec in queries){NSDictionary *query=spec[@"query"] ?: spec;
+            NSMutableArray *pairs=[NSMutableArray array];for(NSString *key in [[query allKeys] sortedArrayUsingSelector:@selector(compare:)])[pairs addObject:[NSString stringWithFormat:@"%@=%@",key,[TBUtils urlEncode:query[key]]]];
+            TBHTTPTask *task=[TBHTTP getJSON:[@"https://youtubeanalytics.googleapis.com/v2/reports?" stringByAppendingString:[pairs componentsJoinedByString:@"&"]] headers:@{@"Authorization":[@"Bearer " stringByAppendingString:token]} completion:^(id json,NSInteger status,NSError *failure){
+                if(outer.isCancelled)return;
+                if(status==200 && !failure){for(NSDictionary *record in [self recordsFromReport:json]){NSMutableDictionary *row=[record mutableCopy];if(spec[@"status"])row[@"subscribedStatus"]=spec[@"status"];[rows addObject:row];}}
+                else {result[@"error"]=status>0?[self errorText:TBDict(json) status:status analytics:YES]:(failure.localizedDescription ?: L(@"The report could not be loaded. Try again."));result[@"HTTP"]=@(status);}
+                if(--pending==0){[rows sortUsingComparator:^NSComparisonResult(NSDictionary *a,NSDictionary *b){return [[TBStudioReports number:b[@"views"]] compare:[TBStudioReports number:a[@"views"]]];}];result[@"rows"]=rows;outer.cancelBlock=nil;[children removeAllObjects];completion(result);}
+            }];if(task)[children addObject:task];
+        }
     }];if(auth)[children addObject:auth];return outer;
 }
 + (TBHTTPTask *)dashboardForDays:(NSInteger)days completion:(void (^)(NSDictionary *))completion {return [self dashboardForDays:days video:nil completion:completion];}

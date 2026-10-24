@@ -15,6 +15,8 @@ int main(void){@autoreleasepool{
     NSString *csv=[TBStudioReports CSVForRows:@[@{@"name":@"=unsafe,\"text\"\nnext",@"value":@(-3)}] columns:@[@"name",@"value"]];
     NSCAssert(([csv rangeOfString:@"\"'=unsafe,\"\"text\"\"\nnext\""].location!=NSNotFound && [csv rangeOfString:@"\"-3\""].location!=NSNotFound),@"CSV must quote line breaks and quotes, protect string formulas and preserve numeric negatives");
     for(NSString *dimension in [TBStudioReports dimensions])NSCAssert(([TBStudioReports queryForDimension:dimension days:28 video:nil now:nil]),@"Known report must have a request");
+    NSArray *filtered=[TBStudioReports queriesForDimension:@"subscribedStatus" days:28 video:@"jNQXAC9IVRw" now:nil];
+    NSCAssert((filtered.count==2 && !filtered[0][@"query"][@"dimensions"] && [filtered[0][@"query"][@"filters"] isEqualToString:@"video==jNQXAC9IVRw;subscribedStatus==SUBSCRIBED"]),@"Subscriber aggregates preserve video filter and use both supported states");
     NSCAssert((![TBStudioReports queryForDimension:@"arbitrary" days:28 video:nil now:nil] && ![TBStudioReports queryForDimension:@"country" days:28 video:@"bad;other==filter" now:nil]),@"Report and video filters are bounded to supported inputs");
     NSLog(@"Studio report validation, matching-day comparison, zero baselines and CSV checks passed");
 }return 0;}

@@ -3,6 +3,7 @@
 + (NSArray *)records:(id)report;
 + (NSArray *)dimensions;
 + (NSDictionary *)queryForDimension:(NSString *)dimension days:(NSInteger)days video:(NSString *)videoId now:(NSDate *)now;
++ (NSArray *)queriesForDimension:(NSString *)dimension days:(NSInteger)days video:(NSString *)videoId now:(NSDate *)now;
 + (NSDictionary *)previousQueryForDashboard:(NSDictionary *)dashboard;
 + (NSNumber *)number:(id)value;
 + (NSArray *)comparisonRows:(NSDictionary *)dashboard;

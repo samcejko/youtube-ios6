@@ -22,6 +22,12 @@ static NSDate *Shift(NSDate *date,NSInteger days){NSCalendar *c=[[NSCalendar all
     if(videoId.length && (videoId.length!=11 || [videoId rangeOfCharacterFromSet:[[NSCharacterSet characterSetWithCharactersInString:@"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789_-"] invertedSet]].location!=NSNotFound))return nil;
     NSDateFormatter *f=Format();NSDate *today=now ?: [NSDate date];NSMutableDictionary *q=[@{@"ids":@"channel==MINE",@"startDate":[f stringFromDate:Shift(today,1-days)],@"endDate":[f stringFromDate:today],@"dimensions":dimension,@"metrics":@"views,estimatedMinutesWatched",@"sort":@"-views",@"maxResults":@"25"} mutableCopy];if(videoId.length)q[@"filters"]=[@"video==" stringByAppendingString:videoId];return q;
 }
++ (NSArray *)queriesForDimension:(NSString *)dimension days:(NSInteger)days video:(NSString *)videoId now:(NSDate *)now {
+    NSDictionary *base=[self queryForDimension:dimension days:days video:videoId now:now];if(!base)return @[];
+    if(![dimension isEqualToString:@"subscribedStatus"])return @[base];
+    // Filtered aggregates avoid a server error returned by some channels for the grouped report.
+    NSMutableArray *queries=[NSMutableArray array];for(NSString *status in @[@"SUBSCRIBED",@"UNSUBSCRIBED"]){NSMutableDictionary *q=[base mutableCopy];[q removeObjectsForKeys:@[@"dimensions",@"sort",@"maxResults"]];NSString *filter=[@"subscribedStatus==" stringByAppendingString:status];q[@"filters"]=q[@"filters"]?[q[@"filters"] stringByAppendingFormat:@";%@",filter]:filter;[queries addObject:@{@"query":q,@"status":status}];}return queries;
+}
 + (NSDictionary *)previousQueryForDashboard:(NSDictionary *)dashboard {
     NSArray *daily=[dashboard[@"daily"] isKindOfClass:[NSArray class]]?dashboard[@"daily"]:nil;NSString *last=nil;
     for(id row in daily)if([row isKindOfClass:[NSDictionary class]]){NSString *day=String(row[@"day"]);if(day.length==10 && (!last || [day compare:last]==NSOrderedDescending))last=day;}
