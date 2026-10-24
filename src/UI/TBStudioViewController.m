@@ -117,7 +117,7 @@
         TBStudioChart *chart=[[TBStudioChart alloc] initWithFrame:cell.contentView.bounds];chart.autoresizingMask=UIViewAutoresizingFlexibleWidth|UIViewAutoresizingFlexibleHeight;chart.rows=self.dashboard[@"daily"];[cell.contentView addSubview:chart];
     } else if(path.section==3 && [TBArr(self.dashboard[@"topVideos"]) count]) {
         NSDictionary *video=self.dashboard[@"topVideos"][path.row];NSString *videoId=TBStr(video[@"video"]);
-        cell.textLabel.text=TBStr(TBDict(self.dashboard[@"videoTitles"])[videoId]) ?: L(@"Video");
+        cell.textLabel.text=TBStr(TBDict(self.dashboard[@"videoTitles"])[videoId]) ?: videoId ?: L(@"Video");
         cell.detailTextLabel.text=[NSString stringWithFormat:L(@"%@ views"),[self number:video[@"views"]]];cell.accessoryType=UITableViewCellAccessoryDisclosureIndicator;cell.selectionStyle=UITableViewCellSelectionStyleBlue;
     } else if(path.section==4) {
         cell.textLabel.text=L(@"Account settings");cell.accessoryType=UITableViewCellAccessoryDisclosureIndicator;cell.selectionStyle=UITableViewCellSelectionStyleBlue;

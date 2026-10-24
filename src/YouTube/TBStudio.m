@@ -43,7 +43,21 @@
         if(outer.isCancelled)return;
         NSMutableDictionary *titles=[NSMutableDictionary dictionary];
         for(NSDictionary *item in TBArr(TBDict(json)[@"items"])) { NSString *identifier=TBStr(item[@"id"]),*title=TBStr(TBDict(item[@"snippet"])[@"title"]);if(identifier.length && title.length)titles[identifier]=title; }
-        result[@"videoTitles"]=titles;finish();
+        result[@"videoTitles"]=titles;
+        NSMutableArray *missing=[NSMutableArray array];for(NSString *identifier in ids)if(!titles[identifier])[missing addObject:identifier];
+        if(!missing.count){finish();return;}
+        __block NSUInteger pending=missing.count;
+        // Public metadata still works when this OAuth project's Data API is disabled.
+        // Never send the account token to the public oEmbed request.
+        for(NSString *identifier in missing){
+            NSString *watch=[@"https://www.youtube.com/watch?v=" stringByAppendingString:identifier];
+            NSString *embed=[@"https://www.youtube.com/oembed?format=json&url=" stringByAppendingString:[TBUtils urlEncode:watch]];
+            TBHTTPTask *metadata=[TBHTTP getJSON:embed headers:nil completion:^(id body,NSInteger code,NSError *failure){
+                if(outer.isCancelled)return;NSString *title=TBStr(TBDict(body)[@"title"]);if(code==200 && title.length)titles[identifier]=title;
+                if(--pending==0)finish();
+            }];
+            @synchronized(children){[children addObject:metadata];}
+        }
     }];
     @synchronized(children){[children addObject:task];}
 }
@@ -82,6 +96,7 @@
                 if (requestError || status!=200) {
                     result[[key stringByAppendingString:@"Error"]]=status>0 ? [self errorText:TBDict(json) status:status analytics:![key isEqualToString:@"channel"]] : (requestError.localizedDescription ?: L(@"The report could not be loaded. Try again."));
                     result[[key stringByAppendingString:@"HTTP"]]=@(status);
+                    if([key isEqualToString:@"channel"] && [TBAccount shared].channelId.length)result[@"channel"]=@{@"id":[TBAccount shared].channelId,@"snippet":@{@"title":[TBAccount shared].channelTitle ?: L(@"Your channel")}};
                 } else if ([key isEqualToString:@"channel"]) {
                     NSDictionary *channel=TBDict([TBArr(TBDict(json)[@"items"]) firstObject]);
                     if (channel) result[key]=channel;else result[@"channelError"]=L(@"This Google account has no YouTube channel.");

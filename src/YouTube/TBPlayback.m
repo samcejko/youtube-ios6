@@ -217,8 +217,8 @@ static NSDictionary *TBParseAttributes(NSString *list)
     };
 
     // the resolver (yt-dlp on the user's computer / the Pi, address in Settings) hands back fresh, fully-serving URLs
-    // keyed by itag. The app keeps the sidx byte ranges it already parsed from its own InnerTube for each itag and
-    // just swaps in these URLs, so the proxy can remux the WHOLE video at up to 1080p - no 60 s wall. Off by default.
+    // with codec and track metadata. It can recover playback even if InnerTube returned no usable tracks.
+    // Legacy resolvers can still replace URLs by itag. The resolver can be changed or disabled in Settings.
     void (^resolverThenRemux)(TBPlayerInfo *) = ^(TBPlayerInfo *info) {
         NSString *base = [TBSettings resolverBase];
         if (!base.length || info.isLive) { shortRemuxOrAndroid(info); return; }

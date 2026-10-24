@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.5.0 (2026-10-24)
+
+- Playback recovery now tries the configured resolver even when YouTube returns a bot check or no playable formats. DASH video and audio are recognized as playable without requiring a progressive MP4.
+- Resolver metadata supplies complete H.264/AAC tracks, safe media headers and bounded MP4 index discovery. Repeated converted segments are cached.
+- Returning to the player restores its video surface and keep-screen-on preference.
+- Library now includes a native Studio dashboard with 7/28/90-day analytics, daily views and top videos. Channel totals and reports show separate errors when Google permissions or APIs are unavailable.
+- Classic switches, alerts and section headers retain the iOS 6 appearance on modern devices.
+- Playback parser tests run with address and undefined-behavior sanitizers alongside both device builds.
+
 ## 0.4.3 (2026-10-16)
 
 - The app icon now has the standard iOS rounded corners baked in (UIPrerenderedIcon), matching the other apps on the home screen and in package managers (Cydia, Sileo, Zebra) instead of showing as a square tile.

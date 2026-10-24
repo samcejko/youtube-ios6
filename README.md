@@ -13,7 +13,7 @@ TrollStore), with the same iOS 6 look.
   the speed of an MP4 only, so there another speed plays the 360p MP4), resume where you left off, background sound,
   keep-screen-on. Where YouTube
   still offers an HLS stream the player switches between renditions up to 1080p (the iPad 2 decodes 1080p30);
-  everything else plays as the 360p MP4 - see "Quality" below
+  the configured resolver can also supply adaptive H.264/AAC tracks - see "Quality and speed" below
 - Shorts: a vertical player (swipe for the next one) in 720p, the shorts of the channels you follow
 - Live streams, adaptive up to 720p60
 - Channels (videos, shorts, live, playlists), playlists with continuous play, related videos
@@ -26,61 +26,33 @@ TrollStore), with the same iOS 6 look.
   likes and playlists through the YouTube Data API - see "Account" below
 - SponsorBlock (skips sponsor segments and more; categories configurable), captions (also auto-generated),
   Return YouTube Dislike counts
+- Studio channel dashboard with real 7/28/90-day reports, daily views and top videos
 - Light and dark theme in the iOS 6 style, English and Czech
 - Own TLS 1.2 stack (Mbed TLS) and HTTP client: YouTube's servers only accept ciphers iOS 6 never had
 
-Tested on an iPad 2 (iPad2,2) with iOS 6.1.3. The iPhone layout is implemented but has not been tried on a real iPhone yet.
+Tested on an iPad 2 with iOS 6.1.3 and an iPhone X with iOS 16.7.16.
 
 ## How it works
 
-YouTube's InnerTube API is used the way YouTube's own apps use it, without an account: the web client for browsing
-and search, the iOS client for the streams of videos, the Android client for live streams and the plain MP4. The
-media player of iOS 6 receives everything through a small local HTTP proxy, because it cannot speak modern TLS
-itself. There is no login: Google closed its device login to third parties, so subscriptions live on the device and
-are followed through the channels' RSS feeds.
+Browsing uses YouTube's InnerTube API. Playback first requests native streams, then tries the configured resolver when YouTube does not provide a usable source. The default resolver is `https://ytdlp.samcejko.eu/yt`; it receives video IDs, not your Google account token. You can change or disable it in Settings.
 
-### Quality
+The local media proxy provides modern TLS and converts H.264/AAC adaptive MP4 fragments into streams the iOS 6 player can decode. Rich resolver metadata can provide complete tracks even after a native bot-check response. Playback still depends on YouTube allowing the server to access that video; account sign-in alone does not guarantee that every playback check will pass.
 
-YouTube keeps every video as separate "adaptive" MP4 files per quality (DASH), a format the 2012 player does not
-know, and since 2025 it hands them to clients without a Google account for roughly the first minute of a video only
-(the rest needs a "PO token" that only Google's own apps can produce). Tubie therefore plays:
+### Quality and speed
 
-- the adaptive **HLS** stream when YouTube offers one (H.264 video plus a separate AAC sound track; rare for new
-  uploads) - renditions up to 1080p, chosen automatically or by hand,
-- **shorts and clips up to a minute** through the proxy's own converter, which turns the adaptive MP4 fragments into
-  MPEG-TS and packed AAC on the fly - 720p (1080p is there too),
-- **longer videos as the 360p MP4** that YouTube still serves in full,
-- **live streams** as the Android client's HLS.
+The player offers compatible H.264 qualities up to the device's decoder limits. Auto selects up to 720p; 1080p30 is available on compatible hardware. Native HLS and live streams are also supported. Without a working resolver, fallback availability depends on the formats YouTube supplies.
 
-The converter (`src/Net/TBRemux.m`) would serve every video in full HD the moment the first-minute limit is lifted or
-a PO token can be supplied; nothing else in the app would change.
+On iOS 6, changing HLS speed requires a progressive MP4 fallback, when available; it can reload the stream and reduce quality. Modern devices change playback speed directly.
 
-### Account (optional)
+### Account and Studio
 
-Google's sign-in page does not run on the iOS 6 engine, so Tubie signs in the way a TV does: an OAuth client of the
-"TVs and Limited Input devices" kind and the **YouTube Data API v3**. Settings → Account shows a code, you confirm it
-at google.com/device on any other device, and the tokens stay in the device's keychain. With the account:
-subscriptions (synced both ways), likes and dislikes, liked videos and your own playlists. Not with it: the watch
-history, "watch later" and the personalised home page, which the Data API does not expose - those stay local and work
-without any account.
+The built-in sign-in uses a device code/QR code. A custom Google TV client can be configured in Account settings. Tokens and custom client credentials stay in the device keychain. Existing sign-ins are retained across updates.
 
-Tubie does **not** impersonate YouTube's own app, so it cannot offer one shared, ready-made login: a third-party
-YouTube client cannot pass Google's OAuth verification, and embedding Google's first-party credentials would be
-impersonating their app. Instead **you use your own Google client** (free, about five minutes, one time):
+Library → Studio shows read-only channel information and Analytics for 7, 28 or 90 days, daily views and top videos. It uses actual Google API responses. Channel data requires YouTube Data API v3; reports require YouTube Analytics access. These can succeed or fail independently. A missing permission or disabled API is displayed rather than replaced with invented statistics.
 
-1. [Google Cloud Console](https://console.cloud.google.com/) → create a project (or pick one).
-2. **APIs & Services → Library** → enable **YouTube Data API v3**.
-3. **APIs & Services → OAuth consent screen** → User type **External** → fill the name/e-mail → **Save**. Leave the
-   publishing status at **Testing** and add your own Google account under **Test users**. (Testing is all a personal
-   app needs; "production" is what would require Google's verification.)
-4. **APIs & Services → Credentials → Create credentials → OAuth client ID** → application type **TVs and Limited Input
-   devices**. Copy the **client ID** and **client secret**.
-5. In Tubie: Settings → Account → paste the **client ID** and the **client secret**, then **Sign in with Google**.
+The limited-input device flow supports YouTube scopes but does not grant the dedicated Analytics scope to every custom client. Studio therefore depends on the permissions of your existing sign-in; a custom TV client alone does not guarantee Analytics access. No uploads, edits or account changes are made by Studio.
 
-The client secret lives only in your device's keychain, never in this repository or the build. (A build may carry a
-default client baked in from a CI secret, but only that project's own test users can sign in with it - everyone else
-uses their own as above.) The API has a daily quota of 10 000 units per project (plenty for one person); a test-mode
-refresh token lasts 7 days, after which Tubie asks you to sign in again.
+Subscriptions, history and watch-later remain available locally without signing in.
 
 ## Installing on the device
 
