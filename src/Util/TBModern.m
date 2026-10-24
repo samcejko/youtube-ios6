@@ -1,6 +1,6 @@
 // TBModern.m - see TBModern.h. Shared by all of samcejko's iOS 6 apps (only the prefix differs).
 //
-// Compiled twice: with the iOS 9.3 SDK for the armv7 build (deployment target iOS 6.0) and with the iOS 16.5 SDK
+// Compiled twice: with the iOS 9.3 SDK for the armv7 build (deployment target iOS 5.0) and with the iOS 16.5 SDK
 // for the arm64 build (deployment target iOS 14.0). APIs newer than a SDK are behind __IPHONE_OS_VERSION_MAX_ALLOWED,
 // APIs newer than the running iOS behind version checks; so this file opts out of the availability errors of the
 // app's common header (which it does not import) and of the deprecation warnings of the iOS 6 era APIs it bridges.
@@ -131,7 +131,7 @@ static UIImage *TBBarImage(BOOL black, CGFloat above, CGFloat height)
     UIRectFill(CGRectMake(0, size.height - 1, size.width, 1));
     UIImage *image = UIGraphicsGetImageFromCurrentImageContext();
     UIGraphicsEndImageContext();
-    return [image stretchableImageWithLeftCapWidth:(NSInteger)(0) topCapHeight:(NSInteger)(1)];
+    return [image resizableImageWithCapInsets:UIEdgeInsetsMake(1, 0, 1, 0) resizingMode:UIImageResizingModeStretch];
 }
 
 // Bordered bar buttons: normal, pressed and the blue "Done" style, on the blue or the black bar
@@ -192,7 +192,7 @@ static UIImage *TBButtonImage(BOOL black, BOOL highlighted, BOOL done, BOOL back
     UIImage *image = UIGraphicsGetImageFromCurrentImageContext();
     UIGraphicsEndImageContext();
     UIEdgeInsets caps = back ? UIEdgeInsetsMake(7, 15, 7, 6) : UIEdgeInsetsMake(7, 6, 7, 6);
-    return [image stretchableImageWithLeftCapWidth:(NSInteger)caps.left topCapHeight:(NSInteger)caps.top];
+    return [image resizableImageWithCapInsets:caps resizingMode:UIImageResizingModeStretch];
 }
 
 // A fully transparent image (hides the iOS 7 back chevron: the pointed button background draws the arrow)
@@ -217,7 +217,7 @@ static UIImage *TBSearchFieldImage(void)
     [path stroke];
     UIImage *image = UIGraphicsGetImageFromCurrentImageContext();
     UIGraphicsEndImageContext();
-    return [image stretchableImageWithLeftCapWidth:(NSInteger)(14) topCapHeight:(NSInteger)(14)];
+    return [image resizableImageWithCapInsets:UIEdgeInsetsMake(14, 14, 14, 14) resizingMode:UIImageResizingModeStretch];
 }
 
 // The black iOS 6 tab bar, and the darker rounded area behind its selected item
@@ -231,7 +231,7 @@ static UIImage *TBTabBarImage(void)
     UIRectFillUsingBlendMode(CGRectMake(0, 0, size.width, 1), kCGBlendModeNormal);
     UIImage *image = UIGraphicsGetImageFromCurrentImageContext();
     UIGraphicsEndImageContext();
-    return [image stretchableImageWithLeftCapWidth:(NSInteger)(0) topCapHeight:(NSInteger)(1)];
+    return [image resizableImageWithCapInsets:UIEdgeInsetsMake(1, 0, 1, 0) resizingMode:UIImageResizingModeStretch];
 }
 
 static UIImage *TBTabSelectionImage(void)
@@ -243,7 +243,7 @@ static UIImage *TBTabSelectionImage(void)
     [path fill];
     UIImage *image = UIGraphicsGetImageFromCurrentImageContext();
     UIGraphicsEndImageContext();
-    return [image stretchableImageWithLeftCapWidth:(NSInteger)(10) topCapHeight:(NSInteger)(10)];
+    return [image resizableImageWithCapInsets:UIEdgeInsetsMake(10, 10, 10, 10) resizingMode:UIImageResizingModeStretch];
 }
 
 // Segments of a plain segmented control: light gray, the selected one darker
@@ -271,7 +271,7 @@ static UIImage *TBSegmentImage(BOOL selected)
     [path stroke];
     UIImage *image = UIGraphicsGetImageFromCurrentImageContext();
     UIGraphicsEndImageContext();
-    return [image stretchableImageWithLeftCapWidth:(NSInteger)(6) topCapHeight:(NSInteger)(7)];
+    return [image resizableImageWithCapInsets:UIEdgeInsetsMake(7, 6, 7, 6) resizingMode:UIImageResizingModeStretch];
 }
 
 static UIImage *TBSegmentDividerImage(void)

@@ -250,7 +250,21 @@ static NSUInteger TBHandoffGeneration;
         result[@"collectionBackend"]=NSStringFromClass(class_getSuperclass([PSUICollectionView class]));
         result[@"collectionCellBackend"]=NSStringFromClass(class_getSuperclass([PSUICollectionViewCell class]));
         NSMutableArray *views=[NSMutableArray arrayWithArray:top.view.subviews],*labels=[NSMutableArray array];
-        for (NSUInteger i=0;i<views.count;i++) { UIView *v=views[i];[views addObjectsFromArray:v.subviews];if(!v.hidden && [v isKindOfClass:[UILabel class]] && ((UILabel *)v).text.length)[labels addObject:((UILabel *)v).text]; }
+        for (NSUInteger i=0;i<views.count;i++) {
+            UIView *v=views[i];[views addObjectsFromArray:v.subviews];
+            if(!v.hidden && [v isKindOfClass:[UILabel class]] && ((UILabel *)v).text.length)[labels addObject:((UILabel *)v).text];
+            if ([v isKindOfClass:[PSUICollectionView class]] && v.window && !v.hidden) {
+                PSUICollectionView *grid=(PSUICollectionView *)v;
+                NSInteger count=0;for(NSInteger section=0;section<grid.numberOfSections;section++)count+=[grid numberOfItemsInSection:section];
+                result[@"gridItems"]=@(count);result[@"visibleCells"]=@(grid.visibleCells.count);
+                result[@"gridContentHeight"]=@(grid.contentSize.height);result[@"gridTopInset"]=@(grid.contentInset.top);
+                if ([(id)grid.delegate respondsToSelector:@selector(refreshControl)]) {
+                    id refresh=[(id)grid.delegate valueForKey:@"refreshControl"];
+                    result[@"refreshControlClass"]=NSStringFromClass([refresh class]);
+                    result[@"refreshing"]=[refresh valueForKey:@"refreshing"];
+                }
+            }
+        }
         result[@"labels"]=labels;
         result[@"landscape"]=@(UIInterfaceOrientationIsLandscape([UIApplication sharedApplication].statusBarOrientation));
         if ([top isKindOfClass:[TBWatchViewController class]] || [top isKindOfClass:[TBShortsViewController class]]) {

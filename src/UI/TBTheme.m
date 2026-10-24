@@ -10,6 +10,16 @@ static UIColor *RGB(NSInteger r, NSInteger g, NSInteger b)
     return [UIColor colorWithRed:r / 255.0 green:g / 255.0 blue:b / 255.0 alpha:1.0];
 }
 
+static UIImage *TBStretchImage(UIImage *image, UIEdgeInsets caps)
+{
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wunguarded-availability"
+    if ([image respondsToSelector:@selector(resizableImageWithCapInsets:resizingMode:)])
+        return [image resizableImageWithCapInsets:caps resizingMode:UIImageResizingModeStretch];
+#pragma clang diagnostic pop
+    return [image stretchableImageWithLeftCapWidth:(NSInteger)caps.left topCapHeight:(NSInteger)caps.top];
+}
+
 static void TBDrawVerticalGradient(CGContextRef ctx, CGRect rect, UIColor *top, UIColor *bottom)
 {
     CGColorSpaceRef space = CGColorSpaceCreateDeviceRGB();
@@ -47,7 +57,7 @@ static UIImage *TBRoundedGradientImage(UIColor *top, UIColor *bottom, UIColor *s
     UIImage *image = UIGraphicsGetImageFromCurrentImageContext();
     UIGraphicsEndImageContext();
     CGFloat cap = radius + 5;
-    return [image stretchableImageWithLeftCapWidth:(NSInteger)(cap) topCapHeight:(NSInteger)(cap)];
+    return TBStretchImage(image, UIEdgeInsetsMake(cap, cap, cap, cap));
 }
 
 // A bar background: top highlight hairline, gradient body, bottom line.
@@ -63,7 +73,7 @@ static UIImage *TBBarImage(UIColor *top, UIColor *bottom, UIColor *line, CGFloat
     UIRectFill(CGRectMake(0, height - 1, size.width, 1));
     UIImage *image = UIGraphicsGetImageFromCurrentImageContext();
     UIGraphicsEndImageContext();
-    return [image stretchableImageWithLeftCapWidth:(NSInteger)(1) topCapHeight:(NSInteger)(2)];
+    return TBStretchImage(image, UIEdgeInsetsMake(2, 1, 2, 1));
 }
 
 // Draws with a block into an image of the given size (transparent background)
