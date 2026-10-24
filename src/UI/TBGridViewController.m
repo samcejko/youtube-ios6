@@ -106,7 +106,11 @@ static NSString * const kFooterId = @"footer";
     [self.collectionView registerClass:[TBGridHeaderView class] forSupplementaryViewOfKind:PSTCollectionElementKindSectionHeader withReuseIdentifier:[TBGridHeaderView reuseIdentifier]];
     [self.view addSubview:self.collectionView];
 
-    Class refreshClass = NSClassFromString(@"UIRefreshControl") ?: [TBRefreshControl class];
+    NSString *documents = [NSHomeDirectory() stringByAppendingPathComponent:@"Documents"];
+    NSFileManager *files = [NSFileManager defaultManager];
+    BOOL testEarlierUI = [files fileExistsAtPath:[documents stringByAppendingPathComponent:@"debug"]] &&
+        [files fileExistsAtPath:[documents stringByAppendingPathComponent:@"force-ios5-ui"]];
+    Class refreshClass = testEarlierUI ? [TBRefreshControl class] : (NSClassFromString(@"UIRefreshControl") ?: [TBRefreshControl class]);
     self.refreshControl = [[refreshClass alloc] init];
     [self.refreshControl addTarget:self action:@selector(pulled) forControlEvents:UIControlEventValueChanged];
     [self.collectionView addSubview:self.refreshControl];

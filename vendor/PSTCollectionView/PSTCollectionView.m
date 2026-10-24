@@ -2259,7 +2259,13 @@ __attribute__((constructor)) static void PSTCreateUICollectionViewClasses(void) 
 
     @autoreleasepool {
         // Change superclass at runtime. This allows seamless switching from PST* to UI* at runtime.
-        PSTRegisterClasses();
+        // Tubie: permit exercising the iOS 5 grid on a newer test device.
+        // Both files are local developer flags; normal installations use UIKit.
+        NSString *documents = [NSHomeDirectory() stringByAppendingPathComponent:@"Documents"];
+        NSFileManager *files = [NSFileManager defaultManager];
+        BOOL testEarlierUI = [files fileExistsAtPath:[documents stringByAppendingPathComponent:@"debug"]] &&
+            [files fileExistsAtPath:[documents stringByAppendingPathComponent:@"force-ios5-ui"]];
+        if (!testEarlierUI) PSTRegisterClasses();
 
         // add PSUI classes at runtime to make Interface Builder sane
         // (IB doesn't allow adding the PSUICollectionView_ types but doesn't complain on unknown classes)

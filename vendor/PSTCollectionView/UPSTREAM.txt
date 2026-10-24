@@ -1,3 +1,6 @@
 https://github.com/steipete/PSTCollectionView
 Commit: 583d2e5e120d55252bb8c31c49db605668c5cfe8
 MIT License; see LICENSE.
+Local changes: cast the old-model dictionary value to PSTCollectionViewData to
+resolve an SDK 16 method-signature ambiguity; allow the developer-only local
+Documents/debug + Documents/force-ios5-ui flags to exercise the fallback on iOS 6+.
